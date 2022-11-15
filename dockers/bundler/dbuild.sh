@@ -7,7 +7,7 @@ test -z $NOBUILD && yarn preprocess
 test -z "$VERSION" && VERSION=`jq -r .version ../../packages/utils/package.json`
 echo version=$VERSION
 
-IMAGE=accountabstraction/bundler
+IMAGE=skypigr/bundler
 
 #build docker image of bundler
 #rebuild if there is a newer src file:

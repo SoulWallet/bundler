@@ -23,6 +23,7 @@ export class BundlerServer {
   ) {
     this.app = express()
     this.app.use(cors())
+    this.app.use(bodyParser.urlencoded({ extended: false }))
     this.app.use(bodyParser.json())
 
     this.app.get('/', this.intro.bind(this))
@@ -30,6 +31,7 @@ export class BundlerServer {
 
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     this.app.post('/rpc', this.rpc.bind(this))
+    this.app.get('/rpc', this.rpc.bind(this))
 
     this.httpServer = this.app.listen(this.config.port)
     this.startingPromise = this._preflightCheck()

@@ -21,7 +21,7 @@ ethers.BigNumber.prototype[inspectCustomSymbol] = function () {
 }
 
 const CONFIG_FILE_NAME = 'workdir/bundler.config.json'
-
+const MNEMONIC_FILE_NAME = 'workdir/mnemonic.txt'
 export let showStackTraces = false
 export function resolveConfiguration (programOpts: any): BundlerConfig {
   let fileConfig: Partial<BundlerConfig> = {}
@@ -86,7 +86,7 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
     .option('--gasFactor <number>', '', '1')
     .option('--minBalance <number>', 'below this signer balance, keep fee for itself, ignoring "beneficiary" address ')
     .option('--network <string>', 'network name or url')
-    .option('--mnemonic <file>', 'mnemonic/private-key file of signer account')
+    .option('--mnemonic <file>', 'mnemonic/private-key file of signer account', MNEMONIC_FILE_NAME)
     .option('--helper <string>', 'address of the BundlerHelper contract')
     .option('--entryPoint <string>', 'address of the supported EntryPoint contract')
     .option('--port <number>', 'server listening port', '3000')
