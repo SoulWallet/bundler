@@ -23,7 +23,7 @@ ethers.BigNumber.prototype[inspectCustomSymbol] = function () {
 const CONFIG_FILE_NAME = 'workdir/bundler.config.json'
 const MNEMONIC_FILE_NAME = 'workdir/mnemonic.txt'
 export let showStackTraces = false
-export function resolveConfiguration (programOpts: any): BundlerConfig {
+export function resolveConfiguration(programOpts: any): BundlerConfig {
   let fileConfig: Partial<BundlerConfig> = {}
 
   const commandLineParams = getCommandLineParams(programOpts)
@@ -37,7 +37,7 @@ export function resolveConfiguration (programOpts: any): BundlerConfig {
   return mergedConfig
 }
 
-function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
+function getCommandLineParams(programOpts: any): Partial<BundlerConfig> {
   const params: any = {}
   for (const bundlerConfigShapeKey in BundlerConfigShape) {
     const optionValue = programOpts[bundlerConfigShapeKey]
@@ -48,7 +48,7 @@ function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
   return params as BundlerConfig
 }
 
-export async function connectContracts (
+export async function connectContracts(
   wallet: Wallet,
   entryPointAddress: string,
   bundlerHelperAddress: string): Promise<{ entryPoint: EntryPoint, bundlerHelper: BundlerHelper }> {
@@ -66,13 +66,13 @@ export async function connectContracts (
  * @param argv
  * @param overrideExit
  */
-export async function runBundler (argv: string[], overrideExit = true): Promise<BundlerServer> {
+export async function runBundler(argv: string[], overrideExit = true): Promise<BundlerServer> {
   const program = new Command()
 
   if (overrideExit) {
     (program as any)._exit = (exitCode: any, code: any, message: any) => {
       class CommandError extends Error {
-        constructor (message: string, readonly code: any, readonly exitCode: any) {
+        constructor(message: string, readonly code: any, readonly exitCode: any) {
           super(message)
         }
       }
@@ -86,7 +86,7 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
     .option('--gasFactor <number>', '', '1')
     .option('--minBalance <number>', 'below this signer balance, keep fee for itself, ignoring "beneficiary" address ')
     .option('--network <string>', 'network name or url')
-    .option('--mnemonic <file>', 'mnemonic/private-key file of signer account', MNEMONIC_FILE_NAME)
+    .option('--mnemonic <file>', 'mnemonic/private-key file of signer account')
     .option('--helper <string>', 'address of the BundlerHelper contract')
     .option('--entryPoint <string>', 'address of the supported EntryPoint contract')
     .option('--port <number>', 'server listening port', '3000')
@@ -100,6 +100,7 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
   console.log('command-line arguments: ', program.opts())
 
   const config = resolveConfiguration(programOpts)
+  // Creates an mnemonic file at given path and exits.
   if (programOpts.createMnemonic != null) {
     const mnemonicFile = config.mnemonic
     console.log('Creating mnemonic in file', mnemonicFile)
@@ -111,17 +112,39 @@ export async function runBundler (argv: string[], overrideExit = true): Promise<
     console.log('creaed mnemonic file', mnemonicFile)
     process.exit(1)
   }
+
+  // Prefers env settings over config file.
+  let network = config.network
+  if (process.env.NETWORK) {
+    network = process.env.NETWORK
+  }
   const provider: BaseProvider =
     // eslint-disable-next-line
-    config.network === 'hardhat' ? require('hardhat').ethers.provider :
-      ethers.getDefaultProvider(config.network)
+    network === 'hardhat' ? require('hardhat').ethers.provider :
+      ethers.getDefaultProvider(network)
+
   let mnemonic: string
   let wallet: Wallet
+  // Tries to read mnemonic from ENV first, if not found then read file specified by --mnemonic.
+  // Returns Error when both failed.
+  if (process.env.BUNDLER_MNEMONIC) {
+    mnemonic = process.env.BUNDLER_MNEMONIC
+    console.log('Using mnemonic read from environment variable (BUNDLER_MNEMONIC)')
+  } else {
+    try {
+      mnemonic = fs.readFileSync(config.mnemonic, 'ascii').trim()
+      console.log(`Using mnemonic read from --mnemonic ${config.mnemonic}`)
+    } catch (e: any) {
+      throw new Error(`Failed to read mnemonic from env.BUNDLER_MNEMONIC or file ${config.mnemonic}`)
+    }
+  }
+
+  // Tries to create a Wallet from mnemonic.
   try {
-    mnemonic = fs.readFileSync(config.mnemonic, 'ascii').trim()
     wallet = Wallet.fromMnemonic(mnemonic).connect(provider)
+    console.log('Wallet created');
   } catch (e: any) {
-    throw new Error(`Unable to read --mnemonic ${config.mnemonic}: ${e.message as string}`)
+    throw new Error(`Cannot create Wallet from mnemonic: ${e.message as string}`)
   }
 
   const {
