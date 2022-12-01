@@ -3,8 +3,8 @@
   "network":"https://goerli.infura.io/v3/343f11a325594d318750bff27664473a",
   "beneficiary": "0x21f8c63F8aA848baBa3B5D4E19f879221E7a0275",
   "port": "80",
-  "helper": "0x214fadBD244c07ECb9DCe782270d3b673cAD0f9c",
-  "entryPoint": "0x602aB3881Ff3Fa8dA60a8F44Cf633e91bA1FdB69",
+  "helper": "0x7dAf6EB8752555E68500834114bd1c17017D08C5",
+  "entryPoint": "0x5C8b3e2232768d991Ea02ac8bEACaf824aEF0b7d",
   "minBalance": "0",
   "gasFactor": "1"
 }

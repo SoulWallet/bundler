@@ -54,7 +54,7 @@ export class UserOpMethodHandler {
       throw new Error(`userOp.preVerificationGas too low: expected ${expectedPreVerificationGas} but got ${preVerificationGas}`)
     }
 
-    const gasLimit = undefined
+    const gasLimit = 1e7;
     console.log('using gasLimit=', gasLimit)
     await this.entryPoint.handleOps([userOp], beneficiary, { gasLimit }).catch(rethrowError)
 
