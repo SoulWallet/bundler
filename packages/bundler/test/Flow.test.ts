@@ -43,7 +43,7 @@ describe('Flow', function () {
     sampleRecipientAddress = sampleRecipient.address
 
     const EntryPointFactory = await ethers.getContractFactory('EntryPoint')
-    const entryPoint = await EntryPointFactory.deploy(1, 1)
+    const entryPoint = await EntryPointFactory.deploy()
     entryPointAddress = entryPoint.address
 
     const bundleHelperFactory = await ethers.getContractFactory('BundlerHelper')
@@ -90,10 +90,10 @@ describe('Flow', function () {
       ownerAccount
     )
     erc4337Signer = erc4337Provider.getSigner()
-    const simpleWalletPhantomAddress = await erc4337Signer.getAddress()
+    const simpleAccountPhantomAddress = await erc4337Signer.getAddress()
 
     await signer.sendTransaction({
-      to: simpleWalletPhantomAddress,
+      to: simpleAccountPhantomAddress,
       value: 10e18.toString()
     })
 
