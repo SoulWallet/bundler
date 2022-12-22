@@ -11,12 +11,7 @@ services:
       - ./bundler/workdir:/app/workdir:ro
 
     environment:
-      url: https://${HOST}/
-      LETSENCRYPT_HOST: $HOST
-      LETSENCRYPT_PORT: 3000
-      VIRTUAL_HOST: $HOST
-      VIRTUAL_PATH: /
-      VIRTUAL_DEST: /
+
     mem_limit: 300M
     logging:
       driver: "json-file"
