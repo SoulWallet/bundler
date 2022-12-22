@@ -21,7 +21,6 @@ ethers.BigNumber.prototype[inspectCustomSymbol] = function () {
 }
 
 const CONFIG_FILE_NAME = 'workdir/bundler.config.json'
-const MNEMONIC_FILE_NAME = 'workdir/mnemonic.txt'
 export let showStackTraces = false
 export function resolveConfiguration(programOpts: any): BundlerConfig {
   let fileConfig: Partial<BundlerConfig> = {}
@@ -125,8 +124,8 @@ export async function runBundler(argv: string[], overrideExit = true): Promise<B
 
   let mnemonic: string
   let wallet: Wallet
-  // Tries to read mnemonic from ENV first, if not found then read file specified by --mnemonic.
-  // Returns Error when both failed.
+  // Tries to read mnemonic from ENV first, if not found then read from file
+  // specified by --mnemonic. Returns Error when both failed.
   if (process.env.BUNDLER_MNEMONIC) {
     mnemonic = process.env.BUNDLER_MNEMONIC
     console.log('Using mnemonic read from environment variable (BUNDLER_MNEMONIC)')
