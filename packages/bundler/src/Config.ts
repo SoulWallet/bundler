@@ -17,6 +17,7 @@ function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
   return params as BundlerConfig
 }
 
+
 export function isProd (): boolean {
   return process.env.STAGE === 'PROD'
 }
@@ -63,12 +64,14 @@ function mergeConfigs (...sources: Array<Partial<BundlerConfig>>): BundlerConfig
 
 export async function resolveConfiguration (programOpts: any): Promise<{ config: BundlerConfig, provider: BaseProvider, wallet: Wallet }> {
   console.log(`Resolving bundler config in ${process.env.STAGE} stage`)
+
   const commandLineParams = getCommandLineParams(programOpts)
   let fileConfig: Partial<BundlerConfig> = {}
   const configFileName = programOpts.config
   if (fs.existsSync(configFileName)) {
     fileConfig = JSON.parse(fs.readFileSync(configFileName, 'ascii'))
   }
+
   const prodOverwrites = await getAwsSSMParams()
   const config = mergeConfigs(bundlerConfigDefault, fileConfig, prodOverwrites, commandLineParams)
   console.log('Merged configuration:', JSON.stringify(config))
