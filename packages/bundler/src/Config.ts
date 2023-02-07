@@ -17,7 +17,6 @@ function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
   return params as BundlerConfig
 }
 
-
 export function isProd (): boolean {
   return process.env.STAGE === 'PROD'
 }
