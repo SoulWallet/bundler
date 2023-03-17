@@ -11,7 +11,7 @@ import { debug_traceCall } from '../GethTracer'
 import Debug from 'debug'
 import { GetCodeHashes__factory } from '../types'
 import { ReferencedCodeHashes, StakeInfo, StorageMap, UserOperation, ValidationErrors } from './Types'
-import { getAddr, runContractScript } from './moduleUtils'
+import { getAddr, runContractScript, getExpectedPreVerficationGas } from './moduleUtils'
 
 const debug = Debug('aa.mgr.validate')
 
@@ -41,10 +41,13 @@ export interface ValidateUserOpResult extends ValidationResult {
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 
 export class ValidationManager {
+  provider: JsonRpcProvider
+
   constructor (
     readonly entryPoint: EntryPoint,
     readonly reputationManager: ReputationManager,
     readonly unsafe: boolean) {
+    this.provider = entryPoint.provider as JsonRpcProvider
   }
 
   // standard eth_call to simulateValidation
@@ -157,6 +160,17 @@ export class ValidationManager {
       const err = decodeErrorReason(data)
       throw new RpcError(err != null ? err.message : data, 111)
     }
+  }
+
+  async checkProfitability (userOp: UserOperation): Promise<boolean> {
+    const expectedPreVerificationGas = await getExpectedPreVerficationGas(this.provider, userOp)
+    const paidPreVerificationGas = BigNumber.from(userOp.preVerificationGas)
+    const profitable = paidPreVerificationGas.gte(expectedPreVerificationGas)
+    requireCond(profitable,
+      `preVerificationGas(${paidPreVerificationGas.toNumber()}) too low! Expect at least ${expectedPreVerificationGas}`,
+      ValidationErrors.SimulateValidation)
+
+    return true
   }
 
   /**

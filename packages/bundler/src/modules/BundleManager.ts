@@ -164,6 +164,7 @@ export class BundleManager {
       const paymasterStatus = this.reputationManager.getStatus(paymaster)
       const deployerStatus = this.reputationManager.getStatus(factory)
       if (paymasterStatus === ReputationStatus.BANNED || deployerStatus === ReputationStatus.BANNED) {
+        debug('removing userOp for banned paymaster', entry.userOp.sender, entry.userOp.nonce)
         this.mempoolManager.removeUserOp(entry.userOp)
         continue
       }
@@ -190,12 +191,25 @@ export class BundleManager {
         this.mempoolManager.removeUserOp(entry.userOp)
         continue
       }
+
+      try {
+        // Try to re-verify UserOp's profitability
+        await this.validationManager.checkProfitability(entry.userOp)
+      } catch (e: any) {
+        // Don't fail when it's not profitable at this moment, wait until the network Gas fee goes down.
+        debug("userOp isn't profitable at this moment, leave it in the pool for now",
+          entry.userOp.sender,
+          entry.userOp.nonce)
+        continue
+      }
+
       // todo: we take UserOp's callGasLimit, even though it will probably require less (but we don't
       // attempt to estimate it to check)
       // which means we could "cram" more UserOps into a bundle.
       const userOpGasCost = BigNumber.from(validationResult.returnInfo.preOpGas).add(entry.userOp.callGasLimit)
       const newTotalGas = totalGas.add(userOpGasCost)
       if (newTotalGas.gt(this.maxBundleGas)) {
+        debug(`skipping, exceeding bundler's maxBundleGas (${this.maxBundleGas})`)
         break
       }
 
