@@ -393,28 +393,38 @@ export class ArbitrumNodeInterface {
     }
 }
 
+export interface IArbGas {
+    l1GasLimit: BigNumber | undefined
+    l2GasLimit: BigNumber | undefined
+}
+
 export class Arbitrum {
     /**
        * @static
-       * @param {Provider} l2Provider
+       * @param {Provider} provider
        * @param {UserOperationStruct} op
-       * @return {*}  {Promise<number>}
+       * @return {IArbGas}
        * @memberof Arbitrum
        */
-    public static async L1GasLimit (
-        l2Provider: Provider,
+    public static async EstimateGas (
+        provider: Provider,
         op: UserOperationStruct
-    ): Promise<number> {
-        const data = new ethers.utils.Interface(EstimateGasHelperABI).encodeFunctionData('userOpCalldataTest', [op])
-        try {
+    ): Promise<IArbGas> {
+
+        let l1GasLimit: BigNumber | undefined
+        let l2GasLimit: BigNumber | undefined
+
+        const chainId = await provider.getNetwork().then((network) => network.chainId);
+        if (chainId === 421613 || chainId === 42161) {
+            const data = new ethers.utils.Interface(EstimateGasHelperABI).encodeFunctionData('userOpCalldataTest', [op])
             const gasLimit = await ArbitrumNodeInterface.gasEstimateComponents(
-                l2Provider,
+                provider,
                 undefined,
                 ArbitrumEstimateGasHelperAddress,
                 data)
-            return gasLimit.gasEstimateForL1.toNumber()
-        } catch (error) {
-            throw error
+            l1GasLimit = gasLimit.gasEstimateForL1
+            l2GasLimit = gasLimit.gasEstimate.sub(l1GasLimit)
         }
+        return { l1GasLimit, l2GasLimit }
     }
 }

@@ -9,7 +9,7 @@ import { UserOperationEventEvent } from '@account-abstraction/contracts/dist/typ
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { requireCond, RpcError, tostr } from './utils'
 import { ExecutionManager } from './modules/ExecutionManager'
-import { getAddr, getExtraL1Gas } from './modules/moduleUtils'
+import { getAddr, getArbGasLimits } from './modules/moduleUtils'
 import { UserOperationByHashResponse, UserOperationReceipt } from './RpcTypes'
 import { ExecutionErrors, UserOperation, ValidationErrors } from './modules/Types'
 
@@ -130,7 +130,7 @@ export class UserOpMethodHandler {
       validUntil
     } = returnInfo
 
-    const callGasLimit = await this.provider.estimateGas({
+    let callGasLimit = await this.provider.estimateGas({
       from: this.entryPoint.address,
       to: userOp.sender,
       data: userOp.callData
@@ -165,15 +165,22 @@ export class UserOpMethodHandler {
     // add it to `preVerificationGas` such that the User of this method can
     // simiply use the returned `preVerificationGas` in their
     // UserOperation without further calculation.
-    const L1GasLimit = await getExtraL1Gas(this.provider, userOp)
+    const arbGasLimits = await getArbGasLimits(this.provider, userOp)
+    const L1GasLimit: number = arbGasLimits.l1GasLimit?.toNumber() ?? 0
+    const L2GasLimit: number = arbGasLimits.l2GasLimit?.toNumber() ?? 0
     let preVerificationGas = calcPreVerificationGas(userOp)
     debugGas(`calcPreVerificationGas: ${preVerificationGas}`)
+    debugGas(`callGasLimit: ${callGasLimit}`)
     debugGas(`L1GasLimit: ${L1GasLimit}`)
-    debugGas(`Total Estimated Gas: ${preVerificationGas + callGasLimit + L1GasLimit}`)
+    debugGas(`L2GasLimit: ${L2GasLimit}`)
+    debugGas(`Total Estimated Gas: ${preVerificationGas + L2GasLimit + L1GasLimit}`)
 
     preVerificationGas += BigNumber.from(L1GasLimit).mul(14).div(10).toNumber()
     debugGas(`Required PreVerificationGas: ${preVerificationGas}`)
     const verificationGas = BigNumber.from(preOpGas).toNumber()
+    if (arbGasLimits.l2GasLimit !== undefined) {
+      callGasLimit = L2GasLimit
+    }
     return {
       preVerificationGas,
       verificationGas,
