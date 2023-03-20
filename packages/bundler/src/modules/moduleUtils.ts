@@ -5,7 +5,7 @@ import { hexlify, hexZeroPad, Result } from 'ethers/lib/utils'
 import { SlotMap, StorageMap, UserOperation } from './Types'
 import { Provider } from '@ethersproject/providers'
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
-import { Arbitrum } from '@account-abstraction/utils'
+import { Arbitrum, IArbGas } from '@account-abstraction/utils'
 
 // extract address from initCode or paymasterAndData
 export function getAddr (data?: BytesLike): string | undefined {
@@ -72,18 +72,18 @@ export async function runContractScript<T extends ContractFactory> (provider: Pr
   return parsed.args
 }
 
-export async function getExtraL1Gas (provider: Provider, userOp: UserOperation): Promise<number> {
-  const { chainId } = await provider.getNetwork()
-  if (chainId === 421613 || chainId === 42161) {
-    return await Arbitrum.L1GasLimit(provider, userOp)
-  }
-  return 0
+export async function getArbGasLimits (provider: Provider, userOp: UserOperation): Promise<IArbGas> {
+  return await Arbitrum.EstimateGas(provider, userOp)
 }
 
 export async function getExpectedPreVerficationGas (
   provider: Provider,
   userOp: UserOperation
 ): Promise<number> {
-  const extraL1Gas = await getExtraL1Gas(provider, userOp)
-  return BigNumber.from(calcPreVerificationGas(userOp)).add(extraL1Gas).toNumber()
+  let expectedPreVerficationGas: number = calcPreVerificationGas(userOp)
+  const { l1GasLimit } = await getArbGasLimits(provider, userOp)
+  if (l1GasLimit !== undefined) {
+    expectedPreVerficationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(l1GasLimit).toNumber()
+  }
+  return expectedPreVerficationGas
 }
