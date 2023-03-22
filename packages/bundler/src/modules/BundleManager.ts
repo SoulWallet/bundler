@@ -11,6 +11,7 @@ import { StorageMap, UserOperation } from './Types'
 import { getAddr, mergeStorageMap, runContractScript } from './moduleUtils'
 import { EventsManager } from './EventsManager'
 import { ErrorDescription } from '@ethersproject/abi/lib/interface'
+import { MetricRecorder } from '../MetricRecorder'
 
 const debug = Debug('aa.exec.cron')
 
@@ -22,6 +23,7 @@ export interface SendBundleReturn {
 export class BundleManager {
   provider: JsonRpcProvider
   signer: JsonRpcSigner
+  metricRecorder: MetricRecorder
   mutex = new Mutex()
 
   constructor (
@@ -40,6 +42,7 @@ export class BundleManager {
   ) {
     this.provider = entryPoint.provider as JsonRpcProvider
     this.signer = entryPoint.signer as JsonRpcSigner
+    this.metricRecorder = new MetricRecorder()
   }
 
   /**
@@ -194,7 +197,14 @@ export class BundleManager {
 
       try {
         // Try to re-verify UserOp's profitability
-        await this.validationManager.checkProfitability(entry.userOp)
+        const { preVerificationGas, l1GasLimit, l2GasLimit } = await this.validationManager.checkProfitability(entry.userOp)
+        await this.metricRecorder.publish({
+          chainId: this.provider._network.chainId,
+          userOp: entry.userOp,
+          rtL1GasLimit: l1GasLimit,
+          rtL2GasLimit: l2GasLimit,
+          rtPreVerificationGas: preVerificationGas
+        })
       } catch (e: any) {
         // Don't fail when it's not profitable at this moment, wait until the network Gas fee goes down.
         debug("userOp isn't profitable at this moment, leave it in the pool for now",
