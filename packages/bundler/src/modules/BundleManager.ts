@@ -201,6 +201,8 @@ export class BundleManager {
         await this.metricRecorder.publish({
           chainId: this.provider._network.chainId,
           userOp: entry.userOp,
+          userOpHash: entry.userOpHash,
+          prefund: BigNumber.from(entry.prefund).toNumber(),
           rtL1GasLimit: l1GasLimit,
           rtL2GasLimit: l2GasLimit,
           rtPreVerificationGas: preVerificationGas
