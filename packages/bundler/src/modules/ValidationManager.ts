@@ -11,7 +11,7 @@ import { debug_traceCall } from '../GethTracer'
 import Debug from 'debug'
 import { GetCodeHashes__factory } from '../types'
 import { ReferencedCodeHashes, StakeInfo, StorageMap, UserOperation, ValidationErrors } from './Types'
-import { getAddr, runContractScript, getExpectedPreVerficationGas } from './moduleUtils'
+import { getAddr, runContractScript, getArbGasLimits } from './moduleUtils'
 
 const debug = Debug('aa.mgr.validate')
 
@@ -36,6 +36,12 @@ export interface ValidateUserOpResult extends ValidationResult {
 
   referencedContracts: ReferencedCodeHashes
   storageMap: StorageMap
+}
+
+export interface GasEstimateResult {
+  preVerificationGas: number
+  l1GasLimit: number | undefined
+  l2GasLimit: number | undefined
 }
 
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
@@ -162,15 +168,24 @@ export class ValidationManager {
     }
   }
 
-  async checkProfitability (userOp: UserOperation): Promise<boolean> {
-    const expectedPreVerificationGas = await getExpectedPreVerficationGas(this.provider, userOp)
+  async checkProfitability (userOp: UserOperation): Promise<GasEstimateResult> {
+    let expectedPreVerificationGas: number = calcPreVerificationGas(userOp)
+    const { l1GasLimit, l2GasLimit } = await getArbGasLimits(this.provider, userOp)
+    if (l1GasLimit !== undefined) {
+      expectedPreVerificationGas = BigNumber.from(expectedPreVerificationGas).add(l1GasLimit).toNumber()
+    }
+
     const paidPreVerificationGas = BigNumber.from(userOp.preVerificationGas)
     const profitable = paidPreVerificationGas.gte(expectedPreVerificationGas)
     requireCond(profitable,
       `preVerificationGas(${paidPreVerificationGas.toNumber()}) too low! Expect at least ${expectedPreVerificationGas}`,
       ValidationErrors.SimulateValidation)
 
-    return true
+    return {
+      preVerificationGas: expectedPreVerificationGas,
+      l1GasLimit: l1GasLimit?.toNumber(),
+      l2GasLimit: l2GasLimit?.toNumber()
+    }
   }
 
   /**

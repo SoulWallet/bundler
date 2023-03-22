@@ -1,10 +1,9 @@
 // misc utilities for the various modules.
 
-import { BigNumber, BytesLike, ContractFactory } from 'ethers'
+import { BytesLike, ContractFactory } from 'ethers'
 import { hexlify, hexZeroPad, Result } from 'ethers/lib/utils'
 import { SlotMap, StorageMap, UserOperation } from './Types'
 import { Provider } from '@ethersproject/providers'
-import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { Arbitrum, IArbGas } from '@account-abstraction/utils'
 
 // extract address from initCode or paymasterAndData
@@ -74,16 +73,4 @@ export async function runContractScript<T extends ContractFactory> (provider: Pr
 
 export async function getArbGasLimits (provider: Provider, userOp: UserOperation): Promise<IArbGas> {
   return await Arbitrum.EstimateGas(provider, userOp)
-}
-
-export async function getExpectedPreVerficationGas (
-  provider: Provider,
-  userOp: UserOperation
-): Promise<number> {
-  let expectedPreVerficationGas: number = calcPreVerificationGas(userOp)
-  const { l1GasLimit } = await getArbGasLimits(provider, userOp)
-  if (l1GasLimit !== undefined) {
-    expectedPreVerficationGas = BigNumber.from(calcPreVerificationGas(userOp)).add(l1GasLimit).toNumber()
-  }
-  return expectedPreVerficationGas
 }
