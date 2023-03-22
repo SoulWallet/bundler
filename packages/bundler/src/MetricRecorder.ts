@@ -8,6 +8,8 @@ const debug = Debug('aa.metric')
 export interface IBundlerGasMetric {
   chainId: number
   userOp: UserOperation
+  userOpHash: string
+  prefund: number
   rtL1GasLimit: number
   rtL2GasLimit: number
   rtPreVerificationGas: number
