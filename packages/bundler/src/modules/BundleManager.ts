@@ -200,12 +200,14 @@ export class BundleManager {
         const { preVerificationGas, l1GasLimit, l2GasLimit } = await this.validationManager.checkProfitability(entry.userOp)
         await this.metricRecorder.publish({
           chainId: this.provider._network.chainId,
+          entryPoint: this.entryPoint.address,
           userOp: entry.userOp,
           userOpHash: entry.userOpHash,
           prefund: BigNumber.from(entry.prefund).toNumber(),
           rtL1GasLimit: l1GasLimit,
           rtL2GasLimit: l2GasLimit,
-          rtPreVerificationGas: preVerificationGas
+          rtPreVerificationGas: preVerificationGas,
+          submitTime: Date.now().toString()
         })
       } catch (e: any) {
         // Don't fail when it's not profitable at this moment, wait until the network Gas fee goes down.
