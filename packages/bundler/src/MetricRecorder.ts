@@ -7,6 +7,7 @@ const debug = Debug('aa.metric')
 
 export interface IBundlerGasMetric {
   chainId: number
+  entryPoint: string
   userOp: UserOperation
   userOpHash: string
   prefund: number
@@ -15,6 +16,7 @@ export interface IBundlerGasMetric {
   rtPreVerificationGas: number
   actualGas: number
   txHash: string
+  submitTime: String
 }
 
 export class MetricRecorder {
