@@ -1,4 +1,4 @@
-import { BigNumber, ethers } from 'ethers'
+import { BigNumber, ethers, BytesLike } from 'ethers'
 import { UserOperationStruct } from '@account-abstraction/contracts'
 import { Provider } from '@ethersproject/providers'
 
@@ -370,7 +370,7 @@ export class ArbitrumNodeInterface {
         etherProvider: Provider,
         from: string | undefined,
         to: string,
-        calldata: string, contractCreation = false
+        calldata: BytesLike, contractCreation = false
     ): Promise<IEstimateComponents> {
         const encodeABI = new ethers.utils.Interface(ArbitrumNodeInterfaceABI).encodeFunctionData('gasEstimateComponents', [
             to,
@@ -426,5 +426,33 @@ export class Arbitrum {
             l2GasLimit = gasLimit.gasEstimate.sub(l1GasLimit)
         }
         return { l1GasLimit, l2GasLimit }
+    }
+
+    public static async CallGasLimits (provider: Provider, from: string, to: string, data: BytesLike): Promise<IArbGas> {
+        let l1GasLimit: BigNumber | undefined
+        let l2GasLimit: BigNumber | undefined
+
+        const chainId = await provider.getNetwork().then((network) => network.chainId);
+        if (chainId === 421613 || chainId === 42161) {
+            const gasEstimates = await ArbitrumNodeInterface.gasEstimateComponents(provider, from, to, data)
+            l1GasLimit = gasEstimates.gasEstimateForL1
+            l2GasLimit = gasEstimates.gasEstimate.sub(l1GasLimit)
+        }
+        return { l1GasLimit, l2GasLimit }
+    }
+
+    public static async L1GasLimit (provider: Provider, op: UserOperationStruct): Promise<BigNumber | undefined> {
+        let l1GasLimit: BigNumber | undefined
+        const chainId = await provider.getNetwork().then((network) => network.chainId);
+        if (chainId === 421613 || chainId === 42161) {
+            const data = new ethers.utils.Interface(EstimateGasHelperABI).encodeFunctionData('userOpCalldataTest', [op])
+            const gasLimit = await ArbitrumNodeInterface.gasEstimateComponents(
+                provider,
+                undefined,
+                ArbitrumEstimateGasHelperAddress,
+                data)
+            l1GasLimit = gasLimit.gasEstimateForL1
+        }
+        return l1GasLimit
     }
 }

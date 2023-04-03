@@ -1,3 +1,5 @@
+import { BigNumber } from 'ethers'
+import { deepHexlify } from '@account-abstraction/utils'
 import { SQS } from 'aws-sdk'
 import { UserOperation } from './modules/Types'
 import { getAwsSSMParameter } from './Config'
@@ -10,11 +12,13 @@ export interface IBundlerGasMetric {
   entryPoint: string
   userOp: UserOperation
   userOpHash: string
-  prefund: number
-  rtL1GasLimit: number
-  rtL2GasLimit: number
-  rtPreVerificationGas: number
-  actualGas: number
+  prefund: BigNumber
+  rtL1GasLimit: BigNumber
+  rtL2GasLimit: BigNumber
+  rtPreVerificationGas: BigNumber // expected preVerificationGas
+  rtPreVerificationGas1: BigNumber // calculated preVerificationGas
+  rtPreVerificationGas2: BigNumber // actual preVerificationGas
+  actualGas: BigNumber
   txHash: string
   submitTime: String
 }
@@ -37,7 +41,7 @@ export class MetricRecorder {
     }
 
     const messageParams = {
-      MessageBody: JSON.stringify(metric),
+      MessageBody: JSON.stringify(deepHexlify(metric)),
       QueueUrl: queueUrl
     }
 
