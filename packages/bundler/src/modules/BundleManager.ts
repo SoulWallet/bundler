@@ -1,6 +1,6 @@
 import { EntryPoint } from '@account-abstraction/contracts'
 import { MempoolManager } from './MempoolManager'
-import { GasEstimateResult, ValidateUserOpResult, ValidationManager } from './ValidationManager'
+import { ValidateUserOpResult, ValidationManager } from './ValidationManager'
 import { BigNumber, BigNumberish } from 'ethers'
 import { JsonRpcProvider, JsonRpcSigner } from '@ethersproject/providers'
 import Debug from 'debug'
