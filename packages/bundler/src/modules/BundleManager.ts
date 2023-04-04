@@ -197,23 +197,28 @@ export class BundleManager {
 
       try {
         // Try to re-verify UserOp's profitability
-        const { preVerificationGas, l1GasLimit, l2GasLimit } = await this.validationManager.checkProfitability(entry.userOp)
+        const gasEstimates = await this.validationManager.checkProfitability(entry.userOp)
         await this.metricRecorder.publish({
           chainId: this.provider._network.chainId,
           entryPoint: this.entryPoint.address,
           userOp: entry.userOp,
           userOpHash: entry.userOpHash,
-          prefund: BigNumber.from(entry.prefund).toNumber(),
-          rtL1GasLimit: l1GasLimit,
-          rtL2GasLimit: l2GasLimit,
-          rtPreVerificationGas: preVerificationGas,
+          prefund: BigNumber.from(entry.prefund),
+          rtL1GasLimit: gasEstimates.l1CallGasLimit,
+          rtL2GasLimit: gasEstimates.l2CallGasLimit,
+          rtPreVerificationGas: gasEstimates.expectedPreVerificationGas,
+          rtPreVerificationGas1: gasEstimates.calculatedPreVerificationGas,
+          rtPreVerificationGas2: gasEstimates.actualPreVerificationGas,
           submitTime: Date.now().toString()
+        }).catch((e: any) => {
+          console.warn('Failed to publish metrics', e)
         })
       } catch (e: any) {
         // Don't fail when it's not profitable at this moment, wait until the network Gas fee goes down.
         debug("userOp isn't profitable at this moment, leave it in the pool for now",
           entry.userOp.sender,
           entry.userOp.nonce)
+        console.warn(e)
         continue
       }
 

@@ -1,6 +1,6 @@
 // misc utilities for the various modules.
 
-import { BytesLike, ContractFactory } from 'ethers'
+import { BigNumber, BytesLike, ContractFactory } from 'ethers'
 import { hexlify, hexZeroPad, Result } from 'ethers/lib/utils'
 import { SlotMap, StorageMap, UserOperation } from './Types'
 import { Provider } from '@ethersproject/providers'
@@ -71,6 +71,25 @@ export async function runContractScript<T extends ContractFactory> (provider: Pr
   return parsed.args
 }
 
-export async function getArbGasLimits (provider: Provider, userOp: UserOperation): Promise<IArbGas> {
-  return await Arbitrum.EstimateGas(provider, userOp)
+/**
+ *
+ * @param provider provider to use for the call
+ * @param from the address of the entryPoint
+ * @param to the address of the sender
+ * @param data the calldata of the UserOperation
+ * @returns an object of IArbGas containing the callGasLimit for L1 and L2
+ */
+export async function getArbCallGasLimits (provider: Provider, from: string, to: string, data: BytesLike): Promise<IArbGas> {
+  return await Arbitrum.CallGasLimits(provider, from, to, data)
+}
+
+/**
+ *
+ * @param provider provider to use for the call
+ * @param userOp the UserOperation to get the LiGasLimit for
+ * @returns the L1GasLimit for the whole UserOperation. O if we are not on Arbitrum.
+ */
+export async function getArbL1GasLimit (provider: Provider, userOp: UserOperation): Promise<BigNumber> {
+  const l1GasLimit = await Arbitrum.L1GasLimit(provider, userOp)
+  return l1GasLimit ?? BigNumber.from(0)
 }

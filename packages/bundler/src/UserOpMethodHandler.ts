@@ -9,7 +9,7 @@ import { UserOperationEventEvent } from '@account-abstraction/contracts/dist/typ
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { requireCond, RpcError, tostr } from './utils'
 import { ExecutionManager } from './modules/ExecutionManager'
-import { getAddr, getArbGasLimits } from './modules/moduleUtils'
+import { getAddr, getArbCallGasLimits, getArbL1GasLimit } from './modules/moduleUtils'
 import { UserOperationByHashResponse, UserOperationReceipt } from './RpcTypes'
 import { ExecutionErrors, UserOperation, ValidationErrors } from './modules/Types'
 
@@ -165,21 +165,28 @@ export class UserOpMethodHandler {
     // add it to `preVerificationGas` such that the User of this method can
     // simiply use the returned `preVerificationGas` in their
     // UserOperation without further calculation.
-    const arbGasLimits = await getArbGasLimits(this.provider, userOp)
-    const L1GasLimit: number = arbGasLimits.l1GasLimit?.toNumber() ?? 0
-    const L2GasLimit: number = arbGasLimits.l2GasLimit?.toNumber() ?? 0
+    const arbCallGasLimits = await getArbCallGasLimits(this.provider, this.entryPoint.address, userOp.sender, userOp.callData)
+    const L1CallGasLimit: number = arbCallGasLimits.l1GasLimit?.toNumber() ?? 0
+    const L2CallGasLimit: number = arbCallGasLimits.l2GasLimit?.toNumber() ?? 0
     let preVerificationGas = calcPreVerificationGas(userOp)
-    debugGas(`calcPreVerificationGas: ${preVerificationGas}`)
+    const L1GasLimit = await (await getArbL1GasLimit(this.provider, userOp)).toNumber()
+
     debugGas(`callGasLimit: ${callGasLimit}`)
+    debugGas(`ArbCallGasLimits: ${L1CallGasLimit + L2CallGasLimit}`)
     debugGas(`L1GasLimit: ${L1GasLimit}`)
-    debugGas(`L2GasLimit: ${L2GasLimit}`)
-    debugGas(`Total Estimated Gas: ${preVerificationGas + L2GasLimit + L1GasLimit}`)
+    debugGas(`L1CallGasLimit: ${L1CallGasLimit}`)
+    debugGas(`L2CallGasLimit: ${L2CallGasLimit}`)
+    debugGas(`calculatedPreVerificationGas: ${preVerificationGas}`)
+    const expectedPreVerificationGas = preVerificationGas + L1GasLimit
+    debugGas(`expectedPreVerificationGas: ${expectedPreVerificationGas}`)
+    debugGas(`Total Estimated Gas: ${preVerificationGas + L2CallGasLimit + L1GasLimit}`)
 
     preVerificationGas += BigNumber.from(L1GasLimit).mul(14).div(10).toNumber()
-    debugGas(`Required PreVerificationGas: ${preVerificationGas}`)
+    debugGas(`Requested PreVerificationGas: ${preVerificationGas}`)
+
     const verificationGas = BigNumber.from(preOpGas).toNumber()
-    if (arbGasLimits.l2GasLimit !== undefined) {
-      callGasLimit = L2GasLimit
+    if (arbCallGasLimits.l2GasLimit !== undefined) {
+      callGasLimit = L2CallGasLimit
     }
     return {
       preVerificationGas,
