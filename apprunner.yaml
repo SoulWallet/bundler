@@ -25,4 +25,4 @@ run:
     - name: BUNDLER_PARAM_NETWORK
       value: "/bundler/arb/main/v1/network"
     - name: DEBUG
-      value: "aa.rpc"
+      value: "aa.rpc,aa.exec.bundle"

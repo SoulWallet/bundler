@@ -13,7 +13,8 @@ import { EventsManager } from './EventsManager'
 import { ErrorDescription } from '@ethersproject/abi/lib/interface'
 import { MetricRecorder } from '../MetricRecorder'
 
-const debug = Debug('aa.exec.cron')
+const debugCron = Debug('aa.exec.cron')
+const debug = Debug('aa.exec.bundle')
 
 export interface SendBundleReturn {
   transactionHash: string
@@ -52,18 +53,18 @@ export class BundleManager {
    */
   async sendNextBundle (): Promise<SendBundleReturn | undefined> {
     return await this.mutex.runExclusive(async () => {
-      debug('sendNextBundle')
+      debugCron('sendNextBundle')
 
       // first flush mempool from already-included UserOps, by actively scanning past events.
       await this.handlePastEvents()
 
       const [bundle, storageMap] = await this.createBundle()
       if (bundle.length === 0) {
-        debug('sendNextBundle - no bundle to send')
+        debugCron('sendNextBundle - no bundle to send')
       } else {
         const beneficiary = await this._selectBeneficiary()
         const ret = await this.sendBundle(bundle, beneficiary, storageMap)
-        debug(`sendNextBundle exit - after sent a bundle of ${bundle.length} `)
+        debugCron(`sendNextBundle exit - after sent a bundle of ${bundle.length} `)
         return ret
       }
     })
@@ -160,7 +161,7 @@ export class BundleManager {
 
     const storageMap: StorageMap = {}
     let totalGas = BigNumber.from(0)
-    debug('got mempool of ', entries.length)
+    debugCron('got mempool of ', entries.length)
     for (const entry of entries) {
       const paymaster = getAddr(entry.userOp.paymasterAndData)
       const factory = getAddr(entry.userOp.initCode)
@@ -195,6 +196,32 @@ export class BundleManager {
         continue
       }
 
+      // todo: we take UserOp's callGasLimit, even though it will probably require less (but we don't
+      // attempt to estimate it to check)
+      // which means we could "cram" more UserOps into a bundle.
+      const userOpGasCost = BigNumber.from(validationResult.returnInfo.preOpGas).add(entry.userOp.callGasLimit)
+      const newTotalGas = totalGas.add(userOpGasCost)
+      if (newTotalGas.gt(this.maxBundleGas)) {
+        debug(`skipping, exceeding bundler's maxBundleGas (${this.maxBundleGas})`)
+        break
+      }
+
+      if (paymaster != null) {
+        if (paymasterDeposit[paymaster] == null) {
+          paymasterDeposit[paymaster] = await this.entryPoint.balanceOf(paymaster)
+        }
+        if (paymasterDeposit[paymaster].lt(validationResult.returnInfo.prefund)) {
+          // not enough balance in paymaster to pay for all UserOps
+          // (but it passed validation, so it can sponsor them separately
+          continue
+        }
+        stakedEntityCount[paymaster] = (stakedEntityCount[paymaster] ?? 0) + 1
+        paymasterDeposit[paymaster] = paymasterDeposit[paymaster].sub(validationResult.returnInfo.prefund)
+      }
+      if (factory != null) {
+        stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
+      }
+
       try {
         // Try to re-verify UserOp's profitability
         const gasEstimates = await this.validationManager.checkProfitability(entry.userOp)
@@ -220,32 +247,6 @@ export class BundleManager {
           entry.userOp.nonce)
         console.warn(e)
         continue
-      }
-
-      // todo: we take UserOp's callGasLimit, even though it will probably require less (but we don't
-      // attempt to estimate it to check)
-      // which means we could "cram" more UserOps into a bundle.
-      const userOpGasCost = BigNumber.from(validationResult.returnInfo.preOpGas).add(entry.userOp.callGasLimit)
-      const newTotalGas = totalGas.add(userOpGasCost)
-      if (newTotalGas.gt(this.maxBundleGas)) {
-        debug(`skipping, exceeding bundler's maxBundleGas (${this.maxBundleGas})`)
-        break
-      }
-
-      if (paymaster != null) {
-        if (paymasterDeposit[paymaster] == null) {
-          paymasterDeposit[paymaster] = await this.entryPoint.balanceOf(paymaster)
-        }
-        if (paymasterDeposit[paymaster].lt(validationResult.returnInfo.prefund)) {
-          // not enough balance in paymaster to pay for all UserOps
-          // (but it passed validation, so it can sponsor them separately
-          continue
-        }
-        stakedEntityCount[paymaster] = (stakedEntityCount[paymaster] ?? 0) + 1
-        paymasterDeposit[paymaster] = paymasterDeposit[paymaster].sub(validationResult.returnInfo.prefund)
-      }
-      if (factory != null) {
-        stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
       }
 
       // If sender's account already exist: replace with its storage root hash
