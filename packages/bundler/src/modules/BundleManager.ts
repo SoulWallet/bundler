@@ -12,6 +12,7 @@ import { getAddr, mergeStorageMap, runContractScript } from './moduleUtils'
 import { EventsManager } from './EventsManager'
 import { ErrorDescription } from '@ethersproject/abi/lib/interface'
 import { MetricRecorder } from '../MetricRecorder'
+import { getFeeData } from '../utils'
 
 const debugCron = Debug('aa.exec.cron')
 const debug = Debug('aa.exec.bundle')
@@ -81,7 +82,7 @@ export class BundleManager {
    */
   async sendBundle (userOps: UserOperation[], beneficiary: string, storageMap: StorageMap): Promise<SendBundleReturn | undefined> {
     try {
-      const feeData = await this.provider.getFeeData()
+      const feeData = await getFeeData(this.provider)
       const tx = await this.entryPoint.populateTransaction.handleOps(userOps, beneficiary, {
         type: 2,
         nonce: await this.signer.getTransactionCount(),
