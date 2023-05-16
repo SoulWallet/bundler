@@ -102,11 +102,12 @@ export class BundlerServer {
       jsonrpc,
       id
     } = req.body
-    debug('>>', { jsonrpc, id, method, params })
+    console.log('recv', method, '-', JSON.stringify(params, null, '') ?? '[]')
+    debug('>> %o', { jsonrpc, id, method, params })
     try {
       const result = deepHexlify(await this.handleMethod(method, params))
-      console.log('sent', method, '-', result)
-      debug('<<', { jsonrpc, id, result })
+      console.log('sent', method, '-', JSON.stringify(result, null, ''))
+      debug('<< %o', { jsonrpc, id, result })
       res.send({
         jsonrpc,
         id,
@@ -119,7 +120,7 @@ export class BundlerServer {
         code: err.code
       }
       console.log('failed: ', method, 'error:', JSON.stringify(error))
-      debug('<<', { jsonrpc, id, error })
+      debug('<< %o', { jsonrpc, id, error })
 
       res.send({
         jsonrpc,

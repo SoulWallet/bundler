@@ -193,7 +193,7 @@ export class ValidationManager {
       l1CallGasLimit: l1GasLimit,
       l2CallGasLimit: l2GasLimit
     }
-    console.log(result)
+    console.log(`GasEstimateResult(${userOp.sender}, ${BigNumber.from(userOp.nonce).toHexString()}): ${JSON.stringify(result, null, '')}`)
     return result
   }
 
