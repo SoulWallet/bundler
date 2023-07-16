@@ -126,6 +126,9 @@ export abstract class BaseAccountAPI {
     try {
       await this.entryPointView.callStatic.getSenderAddress(initCode)
     } catch (e: any) {
+      if (e.errorArgs == null) {
+        throw e
+      }
       return e.errorArgs.sender
     }
     throw new Error('must handle revert')
@@ -253,13 +256,14 @@ export abstract class BaseAccountAPI {
 
     const partialUserOp: any = {
       sender: this.getAccountAddress(),
-      nonce: this.getNonce(),
+      nonce: info.nonce ?? this.getNonce(),
       initCode,
       callData,
       callGasLimit,
       verificationGasLimit,
       maxFeePerGas,
-      maxPriorityFeePerGas
+      maxPriorityFeePerGas,
+      paymasterAndData: '0x'
     }
 
     let paymasterAndData: string | undefined
@@ -267,7 +271,7 @@ export abstract class BaseAccountAPI {
       // fill (partial) preVerificationGas (all except the cost of the generated paymasterAndData)
       const userOpForPm = {
         ...partialUserOp,
-        preVerificationGas: this.getPreVerificationGas(partialUserOp)
+        preVerificationGas: await this.getPreVerificationGas(partialUserOp)
       }
       paymasterAndData = await this.paymasterAPI.getPaymasterAndData(userOpForPm)
     }
