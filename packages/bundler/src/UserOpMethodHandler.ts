@@ -120,14 +120,18 @@ export class UserOpMethodHandler {
       deadline
     } = returnInfo
 
-    const callGasLimit = await this.provider.estimateGas({
-      from: this.entryPoint.address,
-      to: userOp.sender,
-      data: userOp.callData
-    }).then(b => b.toNumber()).catch(err => {
-      const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? 'execution reverted'
-      throw new RpcError(message, ExecutionErrors.UserOperationReverted)
-    })
+    let callGasLimit: number = 0
+    if (userOp.callData !== '0x') {
+      callGasLimit = await this.provider.estimateGas({
+        from: this.entryPoint.address,
+        to: userOp.sender,
+        data: userOp.callData
+      }).then(b => b.toNumber()).catch(err => {
+        const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? 'execution reverted'
+        throw new RpcError(message, ExecutionErrors.UserOperationReverted)
+      })
+    }
+
     deadline = BigNumber.from(deadline)
     if (deadline === 0) {
       deadline = undefined
