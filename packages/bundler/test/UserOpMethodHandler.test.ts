@@ -1,9 +1,6 @@
-import { BaseProvider, JsonRpcSigner } from '@ethersproject/providers'
+import { BaseProvider } from '@ethersproject/providers'
 import { assert, expect } from 'chai'
-import { ethers } from 'hardhat'
 import { parseEther, resolveProperties } from 'ethers/lib/utils'
-
-import { UserOpMethodHandler } from '../src/UserOpMethodHandler'
 
 import { BundlerConfig } from '../src/BundlerConfig'
 import {
@@ -13,11 +10,13 @@ import {
   UserOperationStruct
 } from '@account-abstraction/contracts'
 
-import { Wallet } from 'ethers'
+import { Signer, Wallet } from 'ethers'
 import { DeterministicDeployer, SimpleAccountAPI } from '@account-abstraction/sdk'
 import { postExecutionDump } from '@account-abstraction/utils/dist/src/postExecCheck'
 import {
-  SampleRecipient, TestRuleAccount, TestOpcodesAccount__factory, BundlerHelper__factory
+  SampleRecipient,
+  TestRulesAccount,
+  TestRulesAccount__factory
 } from '../src/types'
 import { resolveHexlify } from '@account-abstraction/utils'
 import { UserOperationEventEvent } from '@account-abstraction/contracts/dist/types/EntryPoint'
@@ -28,6 +27,10 @@ import { MempoolManager } from '../src/modules/MempoolManager'
 import { ValidationManager } from '../src/modules/ValidationManager'
 import { BundleManager } from '../src/modules/BundleManager'
 import { isGeth, waitFor } from '../src/utils'
+import { UserOpMethodHandler } from '../src/UserOpMethodHandler'
+import { ethers } from 'hardhat'
+import { createSigner } from './testUtils'
+import { EventsManager } from '../src/modules/EventsManager'
 
 describe('UserOpMethodHandler', function () {
   const helloWorld = 'hello world'
@@ -35,22 +38,21 @@ describe('UserOpMethodHandler', function () {
   let accountDeployerAddress: string
   let methodHandler: UserOpMethodHandler
   let provider: BaseProvider
-  let signer: JsonRpcSigner
+  let signer: Signer
   const accountSigner = Wallet.createRandom()
+  let mempoolMgr: MempoolManager
 
   let entryPoint: EntryPoint
   let sampleRecipient: SampleRecipient
 
   before(async function () {
     provider = ethers.provider
-    signer = ethers.provider.getSigner()
+
+    signer = await createSigner()
     entryPoint = await new EntryPoint__factory(signer).deploy()
 
     DeterministicDeployer.init(ethers.provider)
     accountDeployerAddress = await DeterministicDeployer.deploy(new SimpleAccountFactory__factory(), 0, [entryPoint.address])
-    const bundlerHelperAddress = await DeterministicDeployer.deploy(new BundlerHelper__factory(), 0, [])
-
-    const bundlerHelper = BundlerHelper__factory.connect(bundlerHelperAddress, ethers.provider)
 
     const sampleRecipientFactory = await ethers.getContractFactory('SampleRecipient')
     sampleRecipient = await sampleRecipientFactory.deploy()
@@ -58,13 +60,13 @@ describe('UserOpMethodHandler', function () {
     const config: BundlerConfig = {
       beneficiary: await signer.getAddress(),
       entryPoint: entryPoint.address,
-      bundlerHelper: bundlerHelperAddress,
       gasFactor: '0.2',
       minBalance: '0',
       mnemonic: '',
       network: '',
       port: '3000',
       unsafe: !await isGeth(provider as any),
+      conditionalRpc: false,
       autoBundleInterval: 0,
       autoBundleMempoolSize: 0,
       maxBundleGas: 5e6,
@@ -74,9 +76,10 @@ describe('UserOpMethodHandler', function () {
     }
 
     const repMgr = new ReputationManager(BundlerReputationParams, parseEther(config.minStake), config.minUnstakeDelay)
-    const mempoolMgr = new MempoolManager(repMgr)
-    const validMgr = new ValidationManager(entryPoint, bundlerHelper, repMgr, config.unsafe)
-    const bundleMgr = new BundleManager(entryPoint, bundlerHelper, mempoolMgr, validMgr, repMgr, config.beneficiary, parseEther(config.minBalance), config.maxBundleGas)
+    mempoolMgr = new MempoolManager(repMgr)
+    const validMgr = new ValidationManager(entryPoint, repMgr, config.unsafe)
+    const evMgr = new EventsManager(entryPoint, mempoolMgr, repMgr)
+    const bundleMgr = new BundleManager(entryPoint, evMgr, mempoolMgr, validMgr, repMgr, config.beneficiary, parseEther(config.minBalance), config.maxBundleGas, false)
     const execManager = new ExecutionManager(repMgr, mempoolMgr, bundleMgr, validMgr)
     methodHandler = new UserOpMethodHandler(
       execManager,
@@ -114,7 +117,7 @@ describe('UserOpMethodHandler', function () {
       })
       const ret = await methodHandler.estimateUserOperationGas(await resolveHexlify(op), entryPoint.address)
       // verification gas should be high - it creates this wallet
-      expect(ret.verificationGas).to.be.closeTo(300000, 100000)
+      expect(ret.verificationGasLimit).to.be.closeTo(300000, 100000)
       // execution should be quite low.
       // (NOTE: actual execution should revert: it only succeeds because the wallet is NOT deployed yet,
       // and estimation doesn't perform full deploy-validate-execute cycle)
@@ -158,20 +161,21 @@ describe('UserOpMethodHandler', function () {
       const transactionReceipt = await event!.getTransactionReceipt()
       assert.isNotNull(transactionReceipt)
       const logs = transactionReceipt.logs.filter(log => log.address === entryPoint.address)
-      const deployedEvent = entryPoint.interface.parseLog(logs[0])
-      const depositedEvent = entryPoint.interface.parseLog(logs[1])
+        .map(log => entryPoint.interface.parseLog(log))
+      expect(logs.map(log => log.name)).to.eql([
+        'AccountDeployed',
+        'Deposited',
+        'BeforeExecution',
+        'UserOperationEvent'
+      ])
       const [senderEvent] = await sampleRecipient.queryFilter(sampleRecipient.filters.Sender(), transactionReceipt.blockHash)
-      const userOperationEvent = entryPoint.interface.parseLog(logs[2])
+      const userOperationEvent = logs[3]
 
-      assert.equal(deployedEvent.args.sender, userOperation.sender)
-      assert.equal(userOperationEvent.name, 'UserOperationEvent')
       assert.equal(userOperationEvent.args.success, true)
 
       const expectedTxOrigin = await methodHandler.signer.getAddress()
       assert.equal(senderEvent.args.txOrigin, expectedTxOrigin, 'sample origin should be bundler')
       assert.equal(senderEvent.args.msgSender, accountAddress, 'sample msgsender should be account address')
-
-      assert.equal(depositedEvent.name, 'Deposited')
     })
 
     it('getUserOperationByHash should return submitted UserOp', async () => {
@@ -284,14 +288,16 @@ describe('UserOpMethodHandler', function () {
   describe('#getUserOperationReceipt', function () {
     let userOpHash: string
     let receipt: UserOperationReceipt
-    let acc: TestRuleAccount
+    let acc: TestRulesAccount
     before(async () => {
-      acc = await new TestOpcodesAccount__factory(signer).deploy()
+      acc = await new TestRulesAccount__factory(signer).deploy()
+      const callData = acc.interface.encodeFunctionData('execSendMessage')
+
       const op: UserOperationStruct = {
         sender: acc.address,
         initCode: '0x',
         nonce: 0,
-        callData: '0x',
+        callData,
         callGasLimit: 1e6,
         verificationGasLimit: 1e6,
         preVerificationGas: 50000,
@@ -316,18 +322,34 @@ describe('UserOpMethodHandler', function () {
       expect(await methodHandler.getUserOperationReceipt(ethers.constants.HashZero)).to.equal(null)
     })
 
-    it('receipt should contain only userOp-specific events..', async () => {
+    it('receipt should contain only userOp execution events..', async () => {
       expect(receipt.logs.length).to.equal(1)
-      const evParams = acc.interface.decodeEventLog('TestMessage', receipt.logs[0].data, receipt.logs[0].topics)
-      expect(evParams.eventSender).to.equal(acc.address)
+      acc.interface.decodeEventLog('TestMessage', receipt.logs[0].data, receipt.logs[0].topics)
     })
     it('general receipt fields', () => {
       expect(receipt.success).to.equal(true)
       expect(receipt.sender).to.equal(acc.address)
     })
     it('receipt should carry transaction receipt', () => {
-      // one UserOperationEvent, and one op-specific event.
-      expect(receipt.receipt.logs.length).to.equal(2)
+      // filter out BOR-specific events..
+      const logs = receipt.receipt.logs
+        .filter(log => log.address !== '0x0000000000000000000000000000000000001010')
+      const eventNames = logs
+        // .filter(l => l.address == entryPoint.address)
+        .map(l => {
+          try {
+            return entryPoint.interface.parseLog(l)
+          } catch (e) {
+            return acc.interface.parseLog(l)
+          }
+        })
+        .map(l => l.name)
+      expect(eventNames).to.eql([
+        'TestFromValidation', // account validateUserOp
+        'BeforeExecution', // entryPoint marker
+        'TestMessage', // account execution event
+        'UserOperationEvent' // post-execution event
+      ])
     })
   })
 })

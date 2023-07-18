@@ -1,5 +1,5 @@
-import { BigNumber, BigNumberish, Wallet } from 'ethers'
-import { JsonRpcSigner, Log, Provider } from '@ethersproject/providers'
+import { BigNumber, BigNumberish, Signer } from 'ethers'
+import { Log, Provider } from '@ethersproject/providers'
 
 import { BundlerConfig } from './BundlerConfig'
 import { resolveProperties } from 'ethers/lib/utils'
@@ -8,10 +8,10 @@ import { UserOperationStruct, EntryPoint } from '@account-abstraction/contracts'
 import { UserOperationEventEvent } from '@account-abstraction/contracts/dist/types/EntryPoint'
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { requireCond, RpcError, tostr } from './utils'
-import { ExecutionErrors, ExecutionManager } from './modules/ExecutionManager'
-import { getAddr, UserOperation } from './modules/moduleUtils'
+import { ExecutionManager } from './modules/ExecutionManager'
+import { getAddr } from './modules/moduleUtils'
 import { UserOperationByHashResponse, UserOperationReceipt } from './RpcTypes'
-import { ValidationErrors } from './modules/ValidationManager'
+import { ExecutionErrors, UserOperation, ValidationErrors } from './modules/Types'
 
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 
@@ -26,11 +26,17 @@ export interface EstimateUserOpGasResult {
   /**
    * gas used for validation of this UserOperation, including account creation
    */
-  verificationGas: BigNumberish
+  verificationGasLimit: BigNumberish
+
+  /**
+   * (possibly future timestamp) after which this UserOperation is valid
+   */
+  validAfter?: BigNumberish
+
   /**
    * the deadline after which this UserOperation is invalid (not a gas estimation parameter, but returned by validation
    */
-  deadline?: BigNumberish
+  validUntil?: BigNumberish
   /**
    * estimated cost of calling the account with the given callData
    */
@@ -41,7 +47,7 @@ export class UserOpMethodHandler {
   constructor (
     readonly execManager: ExecutionManager,
     readonly provider: Provider,
-    readonly signer: Wallet | JsonRpcSigner,
+    readonly signer: Signer,
     readonly config: BundlerConfig,
     readonly entryPoint: EntryPoint
   ) {
@@ -117,7 +123,8 @@ export class UserOpMethodHandler {
     const { returnInfo } = errorResult.errorArgs
     let {
       preOpGas,
-      deadline
+      validAfter,
+      validUntil
     } = returnInfo
 
     let callGasLimit: number = 0
@@ -131,17 +138,21 @@ export class UserOpMethodHandler {
         throw new RpcError(message, ExecutionErrors.UserOperationReverted)
       })
     }
-
-    deadline = BigNumber.from(deadline)
-    if (deadline === 0) {
-      deadline = undefined
+    validAfter = BigNumber.from(validAfter)
+    validUntil = BigNumber.from(validUntil)
+    if (validUntil === BigNumber.from(0)) {
+      validUntil = undefined
+    }
+    if (validAfter === BigNumber.from(0)) {
+      validAfter = undefined
     }
     const preVerificationGas = calcPreVerificationGas(userOp)
-    const verificationGas = BigNumber.from(preOpGas).toNumber()
+    const verificationGasLimit = BigNumber.from(preOpGas).toNumber()
     return {
       preVerificationGas,
-      verificationGas,
-      deadline,
+      verificationGasLimit,
+      validAfter,
+      validUntil,
       callGasLimit
     }
   }
@@ -169,8 +180,14 @@ export class UserOpMethodHandler {
   _filterLogs (userOpEvent: UserOperationEventEvent, logs: Log[]): Log[] {
     let startIndex = -1
     let endIndex = -1
+    const events = Object.values(this.entryPoint.interface.events)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const beforeExecutionTopic = this.entryPoint.interface.getEventTopic(events.find(e => e.name === 'BeforeExecution')!)
     logs.forEach((log, index) => {
-      if (log?.topics[0] === userOpEvent.topics[0]) {
+      if (log?.topics[0] === beforeExecutionTopic) {
+        // all UserOp execution events start after the "BeforeExecution" event.
+        startIndex = endIndex = index
+      } else if (log?.topics[0] === userOpEvent.topics[0]) {
         // process UserOperationEvent
         if (log.topics[1] === userOpEvent.topics[1]) {
           // it's our userOpHash. save as end of logs array
@@ -269,6 +286,6 @@ export class UserOpMethodHandler {
 
   clientVersion (): string {
     // eslint-disable-next-line
-    return 'aa-bundler/' + erc4337RuntimeVersion + (this.config.unsafe ? "/unsafe":"")
+    return 'aa-bundler/' + erc4337RuntimeVersion + (this.config.unsafe ? '/unsafe' : '')
   }
 }

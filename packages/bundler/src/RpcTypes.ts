@@ -1,6 +1,6 @@
 import { BigNumberish } from 'ethers'
 import { TransactionReceipt } from '@ethersproject/providers'
-import { UserOperation } from './modules/moduleUtils'
+import { UserOperation } from './modules/Types'
 
 /**
  * RPC calls return types
@@ -17,7 +17,7 @@ export interface EstimateUserOpGasResult {
   /**
    * gas used for validation of this UserOperation, including account creation
    */
-  verificationGas: BigNumberish
+  verificationGasLimit: BigNumberish
   /**
    * the deadline after which this UserOperation is invalid (not a gas estimation parameter, but returned by validation
    */
