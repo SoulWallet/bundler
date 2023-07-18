@@ -2,7 +2,6 @@ import { EntryPoint } from '@account-abstraction/contracts'
 import { ReputationManager } from './ReputationManager'
 import { BigNumber, BigNumberish, BytesLike, ethers } from 'ethers'
 import { requireCond, RpcError } from '../utils'
-import { getAddr, UserOperation } from './moduleUtils'
 import { AddressZero, decodeErrorReason } from '@account-abstraction/utils'
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { parseScannerResult } from '../parseScannerResult'
@@ -10,27 +9,11 @@ import { JsonRpcProvider } from '@ethersproject/providers'
 import { BundlerCollectorReturn, bundlerCollectorTracer, ExitInfo } from '../BundlerCollectorTracer'
 import { debug_traceCall } from '../GethTracer'
 import Debug from 'debug'
-import { BundlerHelper } from '../types'
+import { GetCodeHashes__factory } from '../types'
+import { ReferencedCodeHashes, StakeInfo, StorageMap, UserOperation, ValidationErrors } from './Types'
+import { getAddr, runContractScript } from './moduleUtils'
 
 const debug = Debug('aa.mgr.validate')
-
-export enum ValidationErrors {
-  InvalidFields = -32602,
-  SimulateValidation = -32500,
-  SimulatePaymasterValidation = -32501,
-  OpcodeValidation = -32502,
-  ExpiresShortly = -32503,
-  Reputation = -32504,
-  InsufficientStake = -32505,
-  UnsupportedSignatureAggregator = -32506
-}
-
-export interface ReferencedCodeHashes {
-  // addresses accessed during this user operation
-  addresses: string[]
-  // keccak over the code of all referenced addresses
-  hash: string
-}
 
 /**
  * result from successful simulateValidation
@@ -39,6 +22,7 @@ export interface ValidationResult {
   returnInfo: {
     preOpGas: BigNumberish
     prefund: BigNumberish
+    sigFailed: boolean
     deadline: number
   }
 
@@ -51,12 +35,7 @@ export interface ValidationResult {
 export interface ValidateUserOpResult extends ValidationResult {
 
   referencedContracts: ReferencedCodeHashes
-}
-
-export interface StakeInfo {
-  addr: string
-  stake: BigNumberish
-  unstakeDelaySec: BigNumberish
+  storageMap: StorageMap
 }
 
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
@@ -64,7 +43,6 @@ const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 export class ValidationManager {
   constructor (
     readonly entryPoint: EntryPoint,
-    readonly bundlerHelper: BundlerHelper,
     readonly reputationManager: ReputationManager,
     readonly unsafe: boolean) {
   }
@@ -189,7 +167,7 @@ export class ValidationManager {
    */
   async validateUserOp (userOp: UserOperation, previousCodeHashes?: ReferencedCodeHashes, checkStakes = true): Promise<ValidateUserOpResult> {
     if (previousCodeHashes != null && previousCodeHashes.addresses.length > 0) {
-      const codeHashes = await this.bundlerHelper.getCodeHashes(previousCodeHashes.addresses)
+      const { hash: codeHashes } = await this.getCodeHashes(previousCodeHashes.addresses)
       requireCond(codeHashes === previousCodeHashes.hash,
         'modified code after first validation',
         ValidationErrors.OpcodeValidation)
@@ -199,16 +177,15 @@ export class ValidationManager {
       addresses: [],
       hash: ''
     }
+    let storageMap: StorageMap = {}
     if (!this.unsafe) {
       let tracerResult: BundlerCollectorReturn
       [res, tracerResult] = await this._geth_traceCall_SimulateValidation(userOp)
-      const contractAddresses = parseScannerResult(userOp, tracerResult, res, this.entryPoint)
+      let contractAddresses: string[]
+      [contractAddresses, storageMap] = parseScannerResult(userOp, tracerResult, res, this.entryPoint)
       // if no previous contract hashes, then calculate hashes of contracts
       if (previousCodeHashes == null) {
-        codeHashes = {
-          hash: await this.bundlerHelper.getCodeHashes(contractAddresses),
-          addresses: contractAddresses
-        }
+        codeHashes = await this.getCodeHashes(contractAddresses)
       }
       if (res as any === '0x') {
         throw new Error('simulateValidation reverted with no revert string!')
@@ -217,6 +194,10 @@ export class ValidationManager {
       // NOTE: this mode doesn't do any opcode checking and no stake checking!
       res = await this._callSimulateValidation(userOp)
     }
+
+    requireCond(!res.returnInfo.sigFailed,
+      'Invalid UserOp signature or paymaster signature',
+      ValidationErrors.InvalidSignature)
 
     requireCond(res.returnInfo.deadline == null || res.returnInfo.deadline + 30 < Date.now() / 1000,
       'expires too soon',
@@ -232,12 +213,18 @@ export class ValidationManager {
 
     return {
       ...res,
-      referencedContracts: codeHashes
+      referencedContracts: codeHashes,
+      storageMap
     }
   }
 
   async getCodeHashes (addresses: string[]): Promise<ReferencedCodeHashes> {
-    const hash = await this.bundlerHelper.getCodeHashes(addresses)
+    const { hash } = await runContractScript(
+      this.entryPoint.provider,
+      new GetCodeHashes__factory(),
+      [addresses]
+    )
+
     return {
       hash,
       addresses

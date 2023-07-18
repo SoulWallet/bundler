@@ -47,7 +47,12 @@ export class HttpRpcClient {
       .send('eth_sendUserOperation', [hexifiedUserOp, this.entryPointAddress])
   }
 
-  async estimateUserOpGas (userOp1: Partial<UserOperationStruct>): Promise<string> {
+  /**
+   * estimate gas requirements for UserOperation
+   * @param userOp1
+   * @returns latest gas suggestions made by the bundler.
+   */
+  async estimateUserOpGas (userOp1: Partial<UserOperationStruct>): Promise<{callGasLimit: number, preVerificationGas: number, verificationGasLimit: number}> {
     await this.initializing
     const hexifiedUserOp = deepHexlify(await resolveProperties(userOp1))
     const jsonRequestData: [UserOperationStruct, string] = [hexifiedUserOp, this.entryPointAddress]
