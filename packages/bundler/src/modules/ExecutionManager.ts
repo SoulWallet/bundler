@@ -36,6 +36,7 @@ export class ExecutionManager {
       debug('sendUserOperation')
       this.validationManager.validateInputParameters(userOp, entryPointInput)
       const validationResult = await this.validationManager.validateUserOp(userOp, undefined)
+      await this.validationManager.checkProfitability(userOp)
       const userOpHash = await this.validationManager.entryPoint.getUserOpHash(userOp)
       this.mempoolManager.addUserOp(userOp,
         userOpHash,

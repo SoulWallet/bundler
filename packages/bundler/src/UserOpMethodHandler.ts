@@ -9,10 +9,13 @@ import { UserOperationEventEvent } from '@account-abstraction/contracts/dist/typ
 import { calcPreVerificationGas } from '@account-abstraction/sdk'
 import { requireCond, RpcError, tostr } from './utils'
 import { ExecutionManager } from './modules/ExecutionManager'
-import { getAddr } from './modules/moduleUtils'
+import { getAddr, getArbCallGasLimits, getArbL1GasLimit } from './modules/moduleUtils'
 import { UserOperationByHashResponse, UserOperationReceipt } from './RpcTypes'
 import { ExecutionErrors, UserOperation, ValidationErrors } from './modules/Types'
 
+import Debug from 'debug'
+
+const debugGas = Debug('aa.gas')
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 
 /**
@@ -146,8 +149,48 @@ export class UserOpMethodHandler {
     if (validAfter === BigNumber.from(0)) {
       validAfter = undefined
     }
-    const preVerificationGas = calcPreVerificationGas(userOp)
+
+    // Gas adjustment in L2 (Arbitrum) network
+    //
+    // For a transactions in layer 2 network, the Gas estimation is less
+    // straightforward than in L1, and the calculation may vary in networks.
+    // However, conceptual wise we can view the total Gas consumption as
+    // two parts: (1) L2 Gas + (2) L1 Gas. The L2 Gas account for executing
+    // the transaction in L2 network, the L1 Gas account for syncing this
+    // transaction's data to L1.
+    //
+    // We can only estimate the gas consumtion in L2, we have to rely on
+    // tools provided by L2 network to esitmate the corresponding L1 cost
+    // for a transaction.
+
+    // In this method, we use a `L1GasLimit` concept to compensate bundler
+    // with the Gas this transaction would consume when going to L1, and
+    // add it to `preVerificationGas` such that the User of this method can
+    // simiply use the returned `preVerificationGas` in their
+    // UserOperation without further calculation.
+    const arbCallGasLimits = await getArbCallGasLimits(this.provider, this.entryPoint.address, userOp.sender, userOp.callData)
+    const L1CallGasLimit: number = arbCallGasLimits.l1GasLimit?.toNumber() ?? 0
+    const L2CallGasLimit: number = arbCallGasLimits.l2GasLimit?.toNumber() ?? 0
+    let preVerificationGas = calcPreVerificationGas(userOp)
+    const L1GasLimit = await (await getArbL1GasLimit(this.provider, userOp)).toNumber()
+
+    debugGas(`callGasLimit: ${callGasLimit}`)
+    debugGas(`ArbCallGasLimits: ${L1CallGasLimit + L2CallGasLimit}`)
+    debugGas(`L1GasLimit: ${L1GasLimit}`)
+    debugGas(`L1CallGasLimit: ${L1CallGasLimit}`)
+    debugGas(`L2CallGasLimit: ${L2CallGasLimit}`)
+    debugGas(`calculatedPreVerificationGas: ${preVerificationGas}`)
+    const expectedPreVerificationGas = preVerificationGas + L1GasLimit
+    debugGas(`expectedPreVerificationGas: ${expectedPreVerificationGas}`)
+    debugGas(`Total Estimated Gas: ${preVerificationGas + L2CallGasLimit + L1GasLimit}`)
+
+    preVerificationGas += BigNumber.from(L1GasLimit).mul(14).div(10).toNumber()
+    debugGas(`Requested PreVerificationGas: ${preVerificationGas}`)
+
     const verificationGasLimit = BigNumber.from(preOpGas).toNumber()
+    if (arbCallGasLimits.l2GasLimit !== undefined) {
+      callGasLimit = L2CallGasLimit
+    }
     return {
       preVerificationGas,
       verificationGasLimit,

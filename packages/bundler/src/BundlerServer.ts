@@ -125,6 +125,7 @@ export class BundlerServer {
       jsonrpc,
       id
     } = reqItem
+    console.log('recv', method, '-', JSON.stringify(params, null, '') ?? '[]')
     debug('>>', { jsonrpc, id, method, params })
     try {
       const result = deepHexlify(await this.handleMethod(method, params))
@@ -143,6 +144,7 @@ export class BundlerServer {
       }
       console.log('failed: ', method, 'error:', JSON.stringify(error))
       debug('<<', { jsonrpc, id, error })
+
       return {
         jsonrpc,
         id,
@@ -177,33 +179,11 @@ export class BundlerServer {
       case 'web3_clientVersion':
         result = this.methodHandler.clientVersion()
         break
-      case 'debug_bundler_clearState':
-        this.debugHandler.clearState()
-        result = 'ok'
-        break
       case 'debug_bundler_dumpMempool':
         result = await this.debugHandler.dumpMempool()
         break
-      case 'debug_bundler_setReputation':
-        await this.debugHandler.setReputation(params[0])
-        result = 'ok'
-        break
       case 'debug_bundler_dumpReputation':
         result = await this.debugHandler.dumpReputation()
-        break
-      case 'debug_bundler_setBundlingMode':
-        await this.debugHandler.setBundlingMode(params[0])
-        result = 'ok'
-        break
-      case 'debug_bundler_setBundleInterval':
-        await this.debugHandler.setBundleInterval(params[0], params[1])
-        result = 'ok'
-        break
-      case 'debug_bundler_sendBundleNow':
-        result = await this.debugHandler.sendBundleNow()
-        if (result == null) {
-          result = 'ok'
-        }
         break
       default:
         throw new RpcError(`Method ${method} is not supported`, -32601)
