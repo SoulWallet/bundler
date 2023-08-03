@@ -208,7 +208,7 @@ export function parseScannerResult (userOp: UserOperation, tracerResults: Bundle
   const entitySlots: { [addr: string]: Set<string> } = parseEntitySlots(stakeInfoEntities, tracerResults.keccak)
 
   Object.entries(stakeInfoEntities).forEach(([entityTitle, entStakes]) => {
-    const entityAddr = entStakes?.addr ?? ''
+    const entityAddr = (entStakes?.addr ?? '').toLowerCase()
     const currentNumLevel = tracerResults.callsFromEntryPoint.find(info => info.topLevelMethodSig === callsFromEntryPointMethodSigs[entityTitle])
     if (currentNumLevel == null) {
       if (entityTitle === 'account') {
@@ -286,7 +286,10 @@ export function parseScannerResult (userOp: UserOperation, tracerResults: Bundle
         // but during initial UserOp (where there is an initCode), it is allowed only for staked entity
         if (associatedWith(slot, sender, entitySlots)) {
           if (userOp.initCode.length > 2) {
-            requireStakeSlot = slot
+            // special case: account.validateUserOp is allowed to use assoc storage if factory is staked.
+            if (!(entityAddr === sender && isStaked(stakeInfoEntities.factory))) {
+              requireStakeSlot = slot
+            }
           }
         } else if (associatedWith(slot, entityAddr, entitySlots)) {
           // accessing a slot associated with entityAddr (e.g. token.balanceOf(paymaster)
@@ -323,15 +326,20 @@ export function parseScannerResult (userOp: UserOperation, tracerResults: Bundle
         'unstaked paymaster must not return context')
     }
 
+    // check if the given entity is staked
+    function isStaked (entStake?: StakeInfo): boolean {
+      return entStake != null && BigNumber.from(1).lte(entStake.stake) && BigNumber.from(1).lte(entStake.unstakeDelaySec)
+    }
+
     // helper method: if condition is true, then entity must be staked.
     function requireCondAndStake (cond: boolean, entStake: StakeInfo | undefined, failureMessage: string): void {
       if (!cond) {
         return
       }
-      if (entStakes == null) {
+      if (entStake == null) {
         throw new Error(`internal: ${entityTitle} not in userOp, but has storage accesses in ${JSON.stringify(access)}`)
       }
-      requireCond(BigNumber.from(1).lt(entStakes.stake) && BigNumber.from(1).lt(entStakes.unstakeDelaySec),
+      requireCond(isStaked(entStake),
         failureMessage, ValidationErrors.OpcodeValidation, { [entityTitle]: entStakes?.addr })
 
       // TODO: check real minimum stake values
