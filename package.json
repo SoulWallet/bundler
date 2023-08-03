@@ -35,6 +35,7 @@
   "dependencies": {
     "@typescript-eslint/eslint-plugin": "^5.33.0",
     "@typescript-eslint/parser": "^5.33.0",
+    "aws-sdk": "^2.1309.0",
     "depcheck": "^1.4.3",
     "eslint": "^8.21.0",
     "eslint-config-standard-with-typescript": "^22.0.0",

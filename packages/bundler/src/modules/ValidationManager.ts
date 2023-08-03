@@ -11,7 +11,7 @@ import { debug_traceCall } from '../GethTracer'
 import Debug from 'debug'
 import { GetCodeHashes__factory } from '../types'
 import { ReferencedCodeHashes, StakeInfo, StorageMap, UserOperation, ValidationErrors } from './Types'
-import { getAddr, runContractScript } from './moduleUtils'
+import { getAddr, runContractScript, getArbL1GasLimit, getArbCallGasLimits } from './moduleUtils'
 
 const debug = Debug('aa.mgr.validate')
 
@@ -38,13 +38,24 @@ export interface ValidateUserOpResult extends ValidationResult {
   storageMap: StorageMap
 }
 
+export interface GasEstimateResult {
+  calculatedPreVerificationGas: BigNumber
+  expectedPreVerificationGas: BigNumber
+  actualPreVerificationGas: BigNumber
+  l1CallGasLimit: BigNumber | undefined
+  l2CallGasLimit: BigNumber | undefined
+}
+
 const HEX_REGEX = /^0x[a-fA-F\d]*$/i
 
 export class ValidationManager {
+  provider: JsonRpcProvider
+
   constructor (
     readonly entryPoint: EntryPoint,
     readonly reputationManager: ReputationManager,
     readonly unsafe: boolean) {
+    this.provider = entryPoint.provider as JsonRpcProvider
   }
 
   // standard eth_call to simulateValidation
@@ -157,6 +168,33 @@ export class ValidationManager {
       const err = decodeErrorReason(data)
       throw new RpcError(err != null ? err.message : data, 111)
     }
+  }
+
+  async checkProfitability (userOp: UserOperation): Promise<GasEstimateResult> {
+    const calculatedPreVerificationGas = BigNumber.from(calcPreVerificationGas(userOp))
+    const L1GasLimit = await getArbL1GasLimit(this.provider, userOp)
+    let expectedPreVerificationGas = calculatedPreVerificationGas
+    if (L1GasLimit !== undefined) {
+      expectedPreVerificationGas = expectedPreVerificationGas.add(L1GasLimit)
+    }
+
+    const paidPreVerificationGas = BigNumber.from(userOp.preVerificationGas)
+    const profitable = paidPreVerificationGas.gte(expectedPreVerificationGas)
+    requireCond(profitable,
+      `preVerificationGas(${paidPreVerificationGas.toString()}) too low! Expect at least ${expectedPreVerificationGas.toString()}`,
+      ValidationErrors.SimulateValidation)
+
+    // logging
+    const { l1GasLimit, l2GasLimit } = await getArbCallGasLimits(this.provider, this.entryPoint.address, userOp.sender, userOp.callData)
+    const result: GasEstimateResult = {
+      calculatedPreVerificationGas,
+      expectedPreVerificationGas,
+      actualPreVerificationGas: paidPreVerificationGas,
+      l1CallGasLimit: l1GasLimit,
+      l2CallGasLimit: l2GasLimit
+    }
+    console.log(`GasEstimateResult(${userOp.sender}, ${BigNumber.from(userOp.nonce).toHexString()}): ${JSON.stringify(result, null, '')}`)
+    return result
   }
 
   /**

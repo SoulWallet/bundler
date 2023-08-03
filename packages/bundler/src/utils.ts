@@ -1,6 +1,7 @@
-import { JsonRpcProvider } from '@ethersproject/providers'
+import { JsonRpcProvider, FeeData } from '@ethersproject/providers'
 import { BigNumberish } from 'ethers/lib/ethers'
-import { BigNumber } from 'ethers'
+import { BigNumber, ethers } from 'ethers'
+import axios from 'axios'
 
 export class RpcError extends Error {
   // error codes from: https://eips.ethereum.org/EIPS/eip-1474
@@ -70,4 +71,41 @@ export async function isGeth (provider: JsonRpcProvider): Promise<boolean> {
   return await supportsRpcMethod(provider, 'debug_traceCall')
   // debug('client version', p._clientVersion)
   // return p._clientVersion?.match('go1') != null
+}
+
+export async function getFeeData (provider: JsonRpcProvider): Promise<FeeData> {
+  if (provider._network.chainId === 137) {
+    // Polygon Mainnet
+    //
+    // The default getFeeData() method on the provider doesn't work for Polygon Mainnet
+    // We need to use the Polygon Gas Station API to get the latest gas prices.
+    // Reference: https://wiki.polygon.technology/docs/develop/tools/polygon-gas-station/
+    let maxFeePerGas = BigNumber.from(40000000000) // default to 40 gwei
+    let maxPriorityFeePerGas = BigNumber.from(40000000000) // default to 40 gwei
+    try {
+      const { data } = await axios({
+        method: 'get',
+        url: 'https://gasstation-mainnet.matic.network/v2'
+      })
+
+      maxFeePerGas = ethers.utils.parseUnits(
+        Math.ceil(data.fast.maxFee).toString(),
+        'gwei'
+      )
+      maxPriorityFeePerGas = ethers.utils.parseUnits(
+        Math.ceil(data.fast.maxPriorityFee).toString(),
+        'gwei'
+      )
+      return {
+        lastBaseFeePerGas: null,
+        gasPrice: null,
+        maxFeePerGas,
+        maxPriorityFeePerGas
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return await provider.getFeeData()
 }
