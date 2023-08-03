@@ -3,8 +3,8 @@ import fs from 'fs'
 
 import { SSM } from 'aws-sdk'
 import { BundlerConfig, bundlerConfigDefault, BundlerConfigShape } from './BundlerConfig'
-import { ethers, Wallet } from 'ethers'
-import { BaseProvider } from '@ethersproject/providers'
+import { Wallet } from 'ethers'
+import { BaseProvider, JsonRpcProvider } from '@ethersproject/providers'
 
 function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
   const params: any = {}
@@ -65,6 +65,17 @@ function mergeConfigs (...sources: Array<Partial<BundlerConfig>>): BundlerConfig
   return mergedConfig
 }
 
+const DEFAULT_INFURA_ID = 'd442d82a1ab34327a7126a578428dfc4'
+
+export function getNetworkProvider (url: string): JsonRpcProvider {
+  if (url.match(/^[\w-]+$/) != null) {
+    const infuraId = process.env.INFURA_ID1 ?? DEFAULT_INFURA_ID
+    url = `https://${url}.infura.io/v3/${infuraId}`
+  }
+  console.log('url=', url)
+  return new JsonRpcProvider(url)
+}
+
 export async function resolveConfiguration (programOpts: any): Promise<{ config: BundlerConfig, provider: BaseProvider, wallet: Wallet }> {
   console.log(`Resolving bundler config in ${process.env.STAGE} stage`)
   const commandLineParams = getCommandLineParams(programOpts)
@@ -81,7 +92,7 @@ export async function resolveConfiguration (programOpts: any): Promise<{ config:
   const provider: BaseProvider = config.network === 'hardhat'
     // eslint-disable-next-line
     ? require('hardhat').ethers.provider
-    : ethers.getDefaultProvider(config.network)
+    : getNetworkProvider(config.network)
 
   let mnemonic: string
   let wallet: Wallet

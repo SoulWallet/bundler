@@ -29,7 +29,7 @@ export interface EstimateUserOpGasResult {
   /**
    * gas used for validation of this UserOperation, including account creation
    */
-  verificationGas: BigNumberish
+  verificationGasLimit: BigNumberish
 
   /**
    * (possibly future timestamp) after which this UserOperation is valid
@@ -130,14 +130,17 @@ export class UserOpMethodHandler {
       validUntil
     } = returnInfo
 
-    let callGasLimit = await this.provider.estimateGas({
-      from: this.entryPoint.address,
-      to: userOp.sender,
-      data: userOp.callData
-    }).then(b => b.toNumber()).catch(err => {
-      const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? 'execution reverted'
-      throw new RpcError(message, ExecutionErrors.UserOperationReverted)
-    })
+    let callGasLimit: number = 0
+    if (userOp.callData !== '0x') {
+      callGasLimit = await this.provider.estimateGas({
+        from: this.entryPoint.address,
+        to: userOp.sender,
+        data: userOp.callData
+      }).then(b => b.toNumber()).catch(err => {
+        const message = err.message.match(/reason="(.*?)"/)?.at(1) ?? 'execution reverted'
+        throw new RpcError(message, ExecutionErrors.UserOperationReverted)
+      })
+    }
     validAfter = BigNumber.from(validAfter)
     validUntil = BigNumber.from(validUntil)
     if (validUntil === BigNumber.from(0)) {
@@ -184,13 +187,13 @@ export class UserOpMethodHandler {
     preVerificationGas += BigNumber.from(L1GasLimit).mul(14).div(10).toNumber()
     debugGas(`Requested PreVerificationGas: ${preVerificationGas}`)
 
-    const verificationGas = BigNumber.from(preOpGas).toNumber()
+    const verificationGasLimit = BigNumber.from(preOpGas).toNumber()
     if (arbCallGasLimits.l2GasLimit !== undefined) {
       callGasLimit = L2CallGasLimit
     }
     return {
       preVerificationGas,
-      verificationGas,
+      verificationGasLimit,
       validAfter,
       validUntil,
       callGasLimit
@@ -220,8 +223,14 @@ export class UserOpMethodHandler {
   _filterLogs (userOpEvent: UserOperationEventEvent, logs: Log[]): Log[] {
     let startIndex = -1
     let endIndex = -1
+    const events = Object.values(this.entryPoint.interface.events)
+    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+    const beforeExecutionTopic = this.entryPoint.interface.getEventTopic(events.find(e => e.name === 'BeforeExecution')!)
     logs.forEach((log, index) => {
-      if (log?.topics[0] === userOpEvent.topics[0]) {
+      if (log?.topics[0] === beforeExecutionTopic) {
+        // all UserOp execution events start after the "BeforeExecution" event.
+        startIndex = endIndex = index
+      } else if (log?.topics[0] === userOpEvent.topics[0]) {
         // process UserOperationEvent
         if (log.topics[1] === userOpEvent.topics[1]) {
           // it's our userOpHash. save as end of logs array

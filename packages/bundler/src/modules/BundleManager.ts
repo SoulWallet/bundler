@@ -12,8 +12,10 @@ import { getAddr, mergeStorageMap, runContractScript } from './moduleUtils'
 import { EventsManager } from './EventsManager'
 import { ErrorDescription } from '@ethersproject/abi/lib/interface'
 import { MetricRecorder } from '../MetricRecorder'
+import { getFeeData } from '../utils'
 
-const debug = Debug('aa.exec.cron')
+const debugCron = Debug('aa.exec.cron')
+const debug = Debug('aa.exec.bundle')
 
 export interface SendBundleReturn {
   transactionHash: string
@@ -52,18 +54,18 @@ export class BundleManager {
    */
   async sendNextBundle (): Promise<SendBundleReturn | undefined> {
     return await this.mutex.runExclusive(async () => {
-      debug('sendNextBundle')
+      debugCron('sendNextBundle')
 
       // first flush mempool from already-included UserOps, by actively scanning past events.
       await this.handlePastEvents()
 
       const [bundle, storageMap] = await this.createBundle()
       if (bundle.length === 0) {
-        debug('sendNextBundle - no bundle to send')
+        debugCron('sendNextBundle - no bundle to send')
       } else {
         const beneficiary = await this._selectBeneficiary()
         const ret = await this.sendBundle(bundle, beneficiary, storageMap)
-        debug(`sendNextBundle exit - after sent a bundle of ${bundle.length} `)
+        debugCron(`sendNextBundle exit - after sent a bundle of ${bundle.length} `)
         return ret
       }
     })
@@ -80,7 +82,7 @@ export class BundleManager {
    */
   async sendBundle (userOps: UserOperation[], beneficiary: string, storageMap: StorageMap): Promise<SendBundleReturn | undefined> {
     try {
-      const feeData = await this.provider.getFeeData()
+      const feeData = await getFeeData(this.provider)
       const tx = await this.entryPoint.populateTransaction.handleOps(userOps, beneficiary, {
         type: 2,
         nonce: await this.signer.getTransactionCount(),
@@ -158,9 +160,16 @@ export class BundleManager {
     // each sender is allowed only once per bundle
     const senders = new Set<string>()
 
+    // all entities that are known to be valid senders in the mempool
+    const knownSenders = entries.map(it => {
+      return it.userOp.sender.toLowerCase()
+    })
+
     const storageMap: StorageMap = {}
     let totalGas = BigNumber.from(0)
-    debug('got mempool of ', entries.length)
+    debugCron('got mempool of ', entries.length)
+    // eslint-disable-next-line no-labels
+    mainLoop:
     for (const entry of entries) {
       const paymaster = getAddr(entry.userOp.paymasterAndData)
       const factory = getAddr(entry.userOp.initCode)
@@ -193,6 +202,17 @@ export class BundleManager {
         // failed validation. don't try anymore
         this.mempoolManager.removeUserOp(entry.userOp)
         continue
+      }
+
+      for (const storageAddress of Object.keys(validationResult.storageMap)) {
+        if (
+          storageAddress.toLowerCase() !== entry.userOp.sender.toLowerCase() &&
+          knownSenders.includes(storageAddress.toLowerCase())
+        ) {
+          console.debug(`UserOperation from ${entry.userOp.sender} sender accessed a storage of another known sender ${storageAddress}`)
+          // eslint-disable-next-line no-labels
+          continue mainLoop
+        }
       }
 
       try {
@@ -246,6 +266,33 @@ export class BundleManager {
       }
       if (factory != null) {
         stakedEntityCount[factory] = (stakedEntityCount[factory] ?? 0) + 1
+      }
+
+      try {
+        // Try to re-verify UserOp's profitability
+        const gasEstimates = await this.validationManager.checkProfitability(entry.userOp)
+        await this.metricRecorder.publish({
+          chainId: this.provider._network.chainId,
+          entryPoint: this.entryPoint.address,
+          userOp: entry.userOp,
+          userOpHash: entry.userOpHash,
+          prefund: BigNumber.from(entry.prefund),
+          rtL1GasLimit: gasEstimates.l1CallGasLimit,
+          rtL2GasLimit: gasEstimates.l2CallGasLimit,
+          rtPreVerificationGas: gasEstimates.expectedPreVerificationGas,
+          rtPreVerificationGas1: gasEstimates.calculatedPreVerificationGas,
+          rtPreVerificationGas2: gasEstimates.actualPreVerificationGas,
+          submitTime: Date.now().toString()
+        }).catch((e: any) => {
+          console.warn('Failed to publish metrics', e)
+        })
+      } catch (e: any) {
+        // Don't fail when it's not profitable at this moment, wait until the network Gas fee goes down.
+        debug("userOp isn't profitable at this moment, leave it in the pool for now",
+          entry.userOp.sender,
+          entry.userOp.nonce)
+        console.warn(e)
+        continue
       }
 
       // If sender's account already exist: replace with its storage root hash

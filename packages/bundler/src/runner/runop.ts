@@ -5,7 +5,7 @@
  * for a simple target method, we just call the "nonce" method of the account itself.
  */
 
-import { BigNumber, getDefaultProvider, Signer, Wallet } from 'ethers'
+import { BigNumber, Signer, Wallet } from 'ethers'
 import { JsonRpcProvider } from '@ethersproject/providers'
 import { SimpleAccountFactory__factory } from '@account-abstraction/contracts'
 import { formatEther, keccak256, parseEther } from 'ethers/lib/utils'
@@ -15,8 +15,9 @@ import fs from 'fs'
 import { DeterministicDeployer, HttpRpcClient, SimpleAccountAPI } from '@account-abstraction/sdk'
 import { runBundler } from '../runBundler'
 import { BundlerServer } from '../BundlerServer'
+import { getNetworkProvider } from '../Config'
 
-const ENTRY_POINT = '0x0576a174D229E3cFA37253523E645A78A0C91B57'
+const ENTRY_POINT = '0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789'
 
 class Runner {
   bundlerProvider!: HttpRpcClient
@@ -110,7 +111,7 @@ async function main (): Promise<void> {
     .option('--selfBundler', 'run bundler in-process (for debugging the bundler)')
 
   const opts = program.parse().opts()
-  const provider = getDefaultProvider(opts.network) as JsonRpcProvider
+  const provider = getNetworkProvider(opts.network)
   let signer: Signer
   const deployFactory: boolean = opts.deployFactory
   let bundler: BundlerServer | undefined
@@ -129,7 +130,7 @@ async function main (): Promise<void> {
       })
     }
 
-    const argv = ['node', 'exec', '--config', './localconfig/bundler.config.json', '--unsafe']
+    const argv = ['node', 'exec', '--config', './localconfig/bundler.config.json', '--unsafe', '--auto']
     if (opts.entryPoint != null) {
       argv.push('--entryPoint', opts.entryPoint)
     }
@@ -155,6 +156,7 @@ async function main (): Promise<void> {
   const accountOwner = new Wallet('0x'.padEnd(66, '7'))
 
   const index = opts.nonce ?? Date.now()
+  console.log('using account index=', index)
   const client = await new Runner(provider, opts.bundlerUrl, accountOwner, opts.entryPoint, index).init(deployFactory ? signer : undefined)
 
   const addr = await client.getAddress()
@@ -169,20 +171,21 @@ async function main (): Promise<void> {
 
   const bal = await getBalance(addr)
   console.log('account address', addr, 'deployed=', await isDeployed(addr), 'bal=', formatEther(bal))
+  const gasPrice = await provider.getGasPrice()
   // TODO: actual required val
-  const requiredBalance = parseEther('0.1')
+  const requiredBalance = gasPrice.mul(2e6)
   if (bal.lt(requiredBalance.div(2))) {
-    console.log('funding account to', requiredBalance)
+    console.log('funding account to', requiredBalance.toString())
     await signer.sendTransaction({
       to: addr,
       value: requiredBalance.sub(bal)
-    })
+    }).then(async tx => await tx.wait())
   } else {
     console.log('not funding account. balance is enough')
   }
 
   const dest = addr
-  const data = keccak256(Buffer.from('nonce()')).slice(0, 10)
+  const data = keccak256(Buffer.from('entryPoint()')).slice(0, 10)
   console.log('data=', data)
   await client.runUserOp(dest, data)
   console.log('after run1')
@@ -193,3 +196,5 @@ async function main (): Promise<void> {
 }
 
 void main()
+  .catch(e => { console.log(e); process.exit(1) })
+  .then(() => process.exit(0))

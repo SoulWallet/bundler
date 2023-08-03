@@ -96,22 +96,46 @@ export class BundlerServer {
   }
 
   async rpc (req: Request, res: Response): Promise<void> {
+    let resContent: any
+    if (Array.isArray(req.body)) {
+      resContent = []
+      for (const reqItem of req.body) {
+        resContent.push(await this.handleRpc(reqItem))
+      }
+    } else {
+      resContent = await this.handleRpc(req.body)
+    }
+
+    try {
+      res.send(resContent)
+    } catch (err: any) {
+      const error = {
+        message: err.message,
+        data: err.data,
+        code: err.code
+      }
+      console.log('failed: ', 'rpc::res.send()', 'error:', JSON.stringify(error))
+    }
+  }
+
+  async handleRpc (reqItem: any): Promise<any> {
     const {
       method,
       params,
       jsonrpc,
       id
-    } = req.body
+    } = reqItem
+    console.log('recv', method, '-', JSON.stringify(params, null, '') ?? '[]')
     debug('>>', { jsonrpc, id, method, params })
     try {
       const result = deepHexlify(await this.handleMethod(method, params))
       console.log('sent', method, '-', result)
       debug('<<', { jsonrpc, id, result })
-      res.send({
+      return {
         jsonrpc,
         id,
         result
-      })
+      }
     } catch (err: any) {
       const error = {
         message: err.message,
@@ -121,11 +145,11 @@ export class BundlerServer {
       console.log('failed: ', method, 'error:', JSON.stringify(error))
       debug('<<', { jsonrpc, id, error })
 
-      res.send({
+      return {
         jsonrpc,
         id,
         error
-      })
+      }
     }
   }
 
@@ -155,33 +179,11 @@ export class BundlerServer {
       case 'web3_clientVersion':
         result = this.methodHandler.clientVersion()
         break
-      case 'debug_bundler_clearState':
-        this.debugHandler.clearState()
-        result = 'ok'
-        break
       case 'debug_bundler_dumpMempool':
         result = await this.debugHandler.dumpMempool()
         break
-      case 'debug_bundler_setReputation':
-        await this.debugHandler.setReputation(params[0])
-        result = 'ok'
-        break
       case 'debug_bundler_dumpReputation':
         result = await this.debugHandler.dumpReputation()
-        break
-      case 'debug_bundler_setBundlingMode':
-        await this.debugHandler.setBundlingMode(params[0])
-        result = 'ok'
-        break
-      case 'debug_bundler_setBundleInterval':
-        await this.debugHandler.setBundleInterval(params[0], params[1])
-        result = 'ok'
-        break
-      case 'debug_bundler_sendBundleNow':
-        result = await this.debugHandler.sendBundleNow()
-        if (result == null) {
-          result = 'ok'
-        }
         break
       default:
         throw new RpcError(`Method ${method} is not supported`, -32601)
