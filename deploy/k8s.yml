@@ -1,0 +1,54 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: soulwallet
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: soulwallet
+  name: bundler-arb-goerli
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: bundler-arb-goerli
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: soulwallet
+  name: bundler-deployment-arb-goerli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundler-arb-goerli
+  template:
+    metadata:
+      labels:
+        app: bundler-arb-goerli
+      # annotations:
+      #   prometheus.io/scrape: true
+      #   prometheus.io/port: 9090
+      #   prometheus.io/path: "/metrics"
+      #   prometheus.io/scheme: "http"
+    spec:
+      containers:
+        - name: bundler
+          image: 368469642629.dkr.ecr.us-west-2.amazonaws.com/soulwallet/bundler:latest
+          ports:
+          - containerPort: 3000
+          - containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+          env:
+            - name: ENV
+              value: "DEV"
+            - name: ROUTE_PREFIX
+              value: "/bundler/arb-goerli"

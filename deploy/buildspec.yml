@@ -1,0 +1,26 @@
+version: 0.2
+
+phases:
+  install:
+    commands:
+      - curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      - aws --version
+  build:
+    commands:
+      - export IMAGE_NAME=soulwallet/bundler
+      - export IMAGE_TAG=$CODEBUILD_RESOLVED_SOURCE_VERSION
+      - echo "building $IMAGE_NAME:$IMAGE_TAG"
+      - docker login -u fanhousanbu -p $DOCKER_SECRET
+      - docker build -t $IMAGE_NAME:$IMAGE_TAG -f deploy/Dockerfile .
+      - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $REPOSITORY_URI
+      - docker tag $IMAGE_NAME:$IMAGE_TAG $REPOSITORY_URI/$IMAGE_NAME:$IMAGE_TAG
+      - docker push $REPOSITORY_URI/$IMAGE_NAME:$IMAGE_TAG
+      - echo "build and push $REPOSITORY_URI/$IMAGE_NAME:$IMAGE_TAG success"
+  post_build:
+    commands:
+      - test "$CODEBUILD_BUILD_SUCCEEDING" = "1" # skip postbuild if build failed
+      - sed -i -e "s/\($REPOSITORY_URI\/[^:]*:\)[a-z0-9_-]*/\1$IMAGE_TAG/g"  deploy/k8s.yml
+      - cat deploy/k8s.yml
+      - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
+      - kubectl apply -f deploy/k8s.yml
+      - echo "deploy success"
