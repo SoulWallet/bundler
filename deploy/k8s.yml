@@ -52,3 +52,15 @@ spec:
               value: "DEV"
             - name: ROUTE_PREFIX
               value: "/bundler/arb-goerli"
+            - name: STAGE
+              value: "PROD"
+            - name: DEBUG
+              value: "aa.rpc,aa.exec.bundle"
+            - name: BUNDLER_PARAM_MNEMONIC_PHRASE
+              value: "/bundler/dev/mnemonic"
+            - name: BUNDLER_PARAM_BENEFICIARY
+              value: "/bundler/dev/beneficiary"
+            - name: BUNDLER_PARAM_ENTRYPOINT
+              value: "/bundler/dev/entrypoint/06"
+            - name: BUNDLER_PARAM_NETWORK
+              value: "/bundler/arb/goerli/dev/network"

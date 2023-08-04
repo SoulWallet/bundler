@@ -12,12 +12,4 @@ COPY --from=build /app/dockers/bundler/dist/bundler.js /app/
 COPY deploy/bundler.config.json /app/workdir/
 COPY deploy/run.sh /app/
 RUN chmod +rx /app/run.sh
-
-ENV STAGE="PROD" \
-  DEBUG="aa.rpc,aa.exec.bundle" \
-  BUNDLER_PARAM_MNEMONIC_PHRASE="/bundler/dev/mnemonic" \
-  BUNDLER_PARAM_BENEFICIARY="/bundler/dev/beneficiary" \
-  BUNDLER_PARAM_ENTRYPOINT="/bundler/dev/entrypoint/06" \
-  BUNDLER_PARAM_NETWORK="/bundler/arb/goerli/dev/network"
-
 ENTRYPOINT [ "/app/run.sh" ]
