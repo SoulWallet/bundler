@@ -17,8 +17,8 @@ function getCommandLineParams (programOpts: any): Partial<BundlerConfig> {
   return params as BundlerConfig
 }
 
-export function isProd (): boolean {
-  return process.env.STAGE === 'PROD'
+export function remoteConfig (): boolean {
+  return process.env.CONFIG === 'REMOTE'
 }
 
 export async function getAwsSSMParameter (name: string, region: string = 'us-west-2'): Promise<string> {
@@ -47,7 +47,7 @@ export async function getParamFromEnv (envName: string): Promise<string> {
 
 export async function getAwsSSMParams (): Promise<Partial<BundlerConfig>> {
   const params: any = {}
-  if (isProd()) {
+  if (remoteConfig()) {
     console.log('Reading parameter from AWS SSM Paramter Store')
 
     // TODO(skypigr): We can query multiple parameters in one batch.
@@ -77,7 +77,7 @@ export function getNetworkProvider (url: string): JsonRpcProvider {
 }
 
 export async function resolveConfiguration (programOpts: any): Promise<{ config: BundlerConfig, provider: BaseProvider, wallet: Signer }> {
-  console.log(`Resolving bundler config in ${process.env.STAGE} stage`)
+  console.log(`Resolving bundler config from ${process.env.CONFIG} config source`)
   const commandLineParams = getCommandLineParams(programOpts)
   let fileConfig: Partial<BundlerConfig> = {}
   const configFileName = programOpts.config
@@ -99,7 +99,7 @@ export async function resolveConfiguration (programOpts: any): Promise<{ config:
   let mnemonic: string
   let wallet: Wallet
   try {
-    mnemonic = isProd()
+    mnemonic = remoteConfig()
       ? await getParamFromEnv('BUNDLER_PARAM_MNEMONIC_PHRASE')
       : fs.readFileSync(config.mnemonic, 'ascii').trim()
     wallet = Wallet.fromMnemonic(mnemonic).connect(provider)

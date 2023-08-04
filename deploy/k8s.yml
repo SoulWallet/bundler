@@ -52,8 +52,8 @@ spec:
               value: "DEV"
             - name: ROUTE_PREFIX
               value: "/bundler/arb-goerli"
-            - name: STAGE
-              value: "PROD"
+            - name: CONFIG
+              value: "REMOTE"
             - name: DEBUG
               value: "aa.rpc,aa.exec.bundle"
             - name: BUNDLER_PARAM_MNEMONIC_PHRASE
