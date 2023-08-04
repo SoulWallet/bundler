@@ -19,7 +19,8 @@ phases:
   post_build:
     commands:
       - test "$CODEBUILD_BUILD_SUCCEEDING" = "1" # skip postbuild if build failed
-      - sed -i -e "s/\($REPOSITORY_URI\/[^:]*:\)[a-z0-9_-]*/\1$IMAGE_TAG/g"  deploy/k8s.yml
+      - sed -i -e "s/\($REPOSITORY_URI\/[^:]*:\)[a-z0-9_-]*/\1$IMAGE_TAG/g" deploy/k8s.yml
+      - sed -i -e "s/_IMAGE_TAG_VALUE_/$IMAGE_TAG/g" deploy/k8s.yml
       - cat deploy/k8s.yml
       - aws eks update-kubeconfig --region $AWS_REGION --name $EKS_CLUSTER_NAME
       - kubectl apply -f deploy/k8s.yml

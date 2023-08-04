@@ -329,6 +329,7 @@ export class UserOpMethodHandler {
 
   clientVersion (): string {
     // eslint-disable-next-line
-    return 'aa-bundler/' + erc4337RuntimeVersion + (this.config.unsafe ? '/unsafe' : '')
+    const tag = process.env.IMAGE_TAG ? '@' + process.env.IMAGE_TAG : ''
+    return 'aa-bundler/' + erc4337RuntimeVersion + (this.config.unsafe ? '/unsafe' : '') + tag
   }
 }
