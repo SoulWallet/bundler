@@ -1,6 +1,6 @@
 import bodyParser from 'body-parser'
 import cors from 'cors'
-import express, { Express, Response, Request } from 'express'
+import express, { Express, Response, Request, NextFunction } from 'express'
 import { Provider } from '@ethersproject/providers'
 import { Signer, utils } from 'ethers'
 import { parseEther } from 'ethers/lib/utils'
@@ -17,6 +17,15 @@ import { DebugMethodHandler } from './DebugMethodHandler'
 import Debug from 'debug'
 
 const debug = Debug('aa.rpc')
+
+function trimPathPrefix (req: Request, res: Response, next: NextFunction): void {
+  const prefix = process.env.ROUTE_PREFIX ?? ''
+  if (prefix !== '' && req.url.startsWith(prefix)) {
+    req.url = req.url.slice(prefix.length)
+  }
+  next()
+}
+
 export class BundlerServer {
   app: Express
   private readonly httpServer: Server
@@ -31,6 +40,7 @@ export class BundlerServer {
     this.app = express()
     this.app.use(cors())
     this.app.use(bodyParser.json())
+    this.app.use(trimPathPrefix)
 
     this.app.get('/', this.intro.bind(this))
     this.app.post('/', this.intro.bind(this))
