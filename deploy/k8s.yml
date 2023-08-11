@@ -66,3 +66,129 @@ spec:
               value: "/bundler/dev/entrypoint/06"
             - name: BUNDLER_PARAM_NETWORK
               value: "/bundler/arb/goerli/dev/network"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: soulwallet
+  name: bundler-eth-goerli
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: bundler-eth-goerli
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: soulwallet
+  name: bundler-deployment-eth-goerli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundler-eth-goerli
+  template:
+    metadata:
+      labels:
+        app: bundler-eth-goerli
+      # annotations:
+      #   prometheus.io/scrape: true
+      #   prometheus.io/port: 9090
+      #   prometheus.io/path: "/metrics"
+      #   prometheus.io/scheme: "http"
+    spec:
+      containers:
+        - name: bundler
+          image: 368469642629.dkr.ecr.us-west-2.amazonaws.com/soulwallet/bundler:latest
+          ports:
+          - containerPort: 3000
+          - containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+          env:
+            - name: ENV
+              value: "DEV"
+            - name: ROUTE_PREFIX
+              value: "/bundler/eth-goerli"
+            - name: IMAGE_TAG
+              value: "_IMAGE_TAG_VALUE_" # should be replaced with resolved image tag.
+            - name: CONFIG
+              value: "REMOTE"
+            - name: DEBUG
+              value: "aa.rpc,aa.exec.bundle"
+            - name: BUNDLER_PARAM_MNEMONIC_PHRASE
+              value: "/bundler/dev/mnemonic"
+            - name: BUNDLER_PARAM_BENEFICIARY
+              value: "/bundler/dev/beneficiary"
+            - name: BUNDLER_PARAM_ENTRYPOINT
+              value: "/bundler/dev/entrypoint/06"
+            - name: BUNDLER_PARAM_NETWORK
+              value: "/bundler/eth/goerli/dev/network" # Ethereum Goerli RPC
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: soulwallet
+  name: bundler-op-goerli
+spec:
+  type: ClusterIP
+  ports:
+    - port: 3000
+      targetPort: 3000
+  selector:
+    app: bundler-op-goerli
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: soulwallet
+  name: bundler-deployment-op-goerli
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bundler-op-goerli
+  template:
+    metadata:
+      labels:
+        app: bundler-op-goerli
+      # annotations:
+      #   prometheus.io/scrape: true
+      #   prometheus.io/port: 9090
+      #   prometheus.io/path: "/metrics"
+      #   prometheus.io/scheme: "http"
+    spec:
+      containers:
+        - name: bundler
+          image: 368469642629.dkr.ecr.us-west-2.amazonaws.com/soulwallet/bundler:latest
+          ports:
+          - containerPort: 3000
+          - containerPort: 9090
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 3000
+          env:
+            - name: ENV
+              value: "DEV"
+            - name: ROUTE_PREFIX
+              value: "/bundler/op-goerli"
+            - name: IMAGE_TAG
+              value: "_IMAGE_TAG_VALUE_" # should be replaced with resolved image tag.
+            - name: CONFIG
+              value: "REMOTE"
+            - name: DEBUG
+              value: "aa.rpc,aa.exec.bundle"
+            - name: BUNDLER_PARAM_MNEMONIC_PHRASE
+              value: "/bundler/dev/mnemonic"
+            - name: BUNDLER_PARAM_BENEFICIARY
+              value: "/bundler/dev/beneficiary"
+            - name: BUNDLER_PARAM_ENTRYPOINT
+              value: "/bundler/dev/entrypoint/06"
+            - name: BUNDLER_PARAM_NETWORK
+              value: "/bundler/op/goerli/dev/network" # Optimistic Goerli RPC
