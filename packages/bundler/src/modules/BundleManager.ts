@@ -60,6 +60,7 @@ export class BundleManager {
       await this.handlePastEvents()
 
       const [bundle, storageMap] = await this.createBundle()
+      debug('createBundle', bundle.length, bundle)
       if (bundle.length === 0) {
         debugCron('sendNextBundle - no bundle to send')
       } else {

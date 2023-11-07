@@ -57,7 +57,7 @@ spec:
             - name: CONFIG
               value: "REMOTE"
             - name: DEBUG
-              value: "aa.rpc,aa.exec.bundle"
+              value: "aa.rpc,aa.exec.bundle,aa.exec.cron"
             - name: BUNDLER_PARAM_MNEMONIC_PHRASE
               value: "/bundler/dev/mnemonic"
             - name: BUNDLER_PARAM_BENEFICIARY
@@ -120,7 +120,7 @@ spec:
             - name: CONFIG
               value: "REMOTE"
             - name: DEBUG
-              value: "aa.rpc,aa.exec.bundle"
+              value: "aa.rpc,aa.exec.bundle,aa.exec.cron"
             - name: BUNDLER_PARAM_MNEMONIC_PHRASE
               value: "/bundler/dev/mnemonic"
             - name: BUNDLER_PARAM_BENEFICIARY
@@ -183,7 +183,7 @@ spec:
             - name: CONFIG
               value: "REMOTE"
             - name: DEBUG
-              value: "aa.rpc,aa.exec.bundle"
+              value: "aa.rpc,aa.exec.bundle,aa.exec.cron"
             - name: BUNDLER_PARAM_MNEMONIC_PHRASE
               value: "/bundler/dev/mnemonic"
             - name: BUNDLER_PARAM_BENEFICIARY
