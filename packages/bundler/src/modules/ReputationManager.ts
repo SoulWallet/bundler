@@ -85,6 +85,7 @@ export class ReputationManager {
   }
 
   _getOrCreate (addr: string): ReputationEntry {
+    addr = addr.toLowerCase();
     let entry = this.entries[addr]
     if (entry == null) {
       this.entries[addr] = entry = {
@@ -101,7 +102,7 @@ export class ReputationManager {
    * @param addr
    */
   updateSeenStatus (addr?: string): void {
-    if (addr == null) {
+    if (addr == null || addr.length <= 2) {
       return
     }
     const entry = this._getOrCreate(addr)
@@ -115,6 +116,9 @@ export class ReputationManager {
    * @param addr
    */
   updateIncludedStatus (addr: string): void {
+    if (addr.length <= 2) {
+      return
+    }
     const entry = this._getOrCreate(addr)
     entry.opsIncluded++
     debug('after Included++', addr, entry)
@@ -133,6 +137,7 @@ export class ReputationManager {
       return ReputationStatus.BANNED
     }
     const entry = this.entries[addr]
+    debug('getStatus', addr, entry);
     if (entry == null) {
       return ReputationStatus.OK
     }
