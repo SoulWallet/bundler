@@ -92,7 +92,7 @@ export class EventsManager {
 
   _includedAddress (data: string | null): void {
     if (data != null && data.length >= 42) {
-      const addr = data.slice(0, 42).toLowerCase();
+      const addr = data.slice(0, 42).toLowerCase()
       this.reputationManager.updateIncludedStatus(addr)
     }
   }

@@ -85,7 +85,7 @@ export class ReputationManager {
   }
 
   _getOrCreate (addr: string): ReputationEntry {
-    addr = addr.toLowerCase();
+    addr = addr.toLowerCase()
     let entry = this.entries[addr]
     if (entry == null) {
       this.entries[addr] = entry = {
