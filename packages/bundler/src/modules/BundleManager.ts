@@ -66,6 +66,9 @@ export class BundleManager {
       } else {
         const beneficiary = await this._selectBeneficiary()
         const ret = await this.sendBundle(bundle, beneficiary, storageMap)
+        for (const userOp of bundle) {
+          this.mempoolManager.removeUserOp(userOp)
+        }
         debugCron(`sendNextBundle exit - after sent a bundle of ${bundle.length} `)
         return ret
       }
