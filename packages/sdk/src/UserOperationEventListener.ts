@@ -45,7 +45,7 @@ export class UserOperationEventListener {
       } else {
         this.entryPoint.once(filter, this.boundLisener)
       }
-    }, 100)
+    }, 1000)
   }
 
   stop (): void {
