@@ -415,7 +415,7 @@ export class Arbitrum {
         let l2GasLimit: BigNumber | undefined
 
         const chainId = await provider.getNetwork().then((network) => network.chainId);
-        if (chainId === 421613 || chainId === 42161) {
+        if (chainId === 421613 || chainId === 42161 || chainId === 421614) {
             const data = new ethers.utils.Interface(EstimateGasHelperABI).encodeFunctionData('userOpCalldataTest', [op])
             const gasLimit = await ArbitrumNodeInterface.gasEstimateComponents(
                 provider,
@@ -433,7 +433,7 @@ export class Arbitrum {
         let l2GasLimit: BigNumber | undefined
 
         const chainId = await provider.getNetwork().then((network) => network.chainId);
-        if (chainId === 421613 || chainId === 42161) {
+        if (chainId === 421613 || chainId === 42161 || chainId === 421614) {
             const gasEstimates = await ArbitrumNodeInterface.gasEstimateComponents(provider, from, to, data)
             l1GasLimit = gasEstimates.gasEstimateForL1
             l2GasLimit = gasEstimates.gasEstimate.sub(l1GasLimit)
@@ -444,7 +444,7 @@ export class Arbitrum {
     public static async L1GasLimit (provider: Provider, op: UserOperationStruct): Promise<BigNumber | undefined> {
         let l1GasLimit: BigNumber | undefined
         const chainId = await provider.getNetwork().then((network) => network.chainId);
-        if (chainId === 421613 || chainId === 42161) {
+        if (chainId === 421613 || chainId === 42161 || chainId === 421614) {
             const data = new ethers.utils.Interface(EstimateGasHelperABI).encodeFunctionData('userOpCalldataTest', [op])
             const gasLimit = await ArbitrumNodeInterface.gasEstimateComponents(
                 provider,
