@@ -169,6 +169,7 @@ export class UserOpMethodHandler {
     // simiply use the returned `preVerificationGas` in their
     // UserOperation without further calculation.
     const arbCallGasLimits = await getArbCallGasLimits(this.provider, this.entryPoint.address, userOp.sender, userOp.callData)
+    debugGas(`callGasLimit: ${arbCallGasLimits}`)
     const L1CallGasLimit: number = arbCallGasLimits.l1GasLimit?.toNumber() ?? 0
     const L2CallGasLimit: number = arbCallGasLimits.l2GasLimit?.toNumber() ?? 0
     let preVerificationGas = calcPreVerificationGas(userOp)
