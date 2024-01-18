@@ -4,7 +4,7 @@ import { BigNumber, BytesLike, ContractFactory } from 'ethers'
 import { hexlify, hexZeroPad, Result } from 'ethers/lib/utils'
 import { SlotMap, StorageMap, UserOperation } from './Types'
 import { Provider } from '@ethersproject/providers'
-import { Arbitrum, IArbGas } from '@account-abstraction/utils'
+import { Arbitrum, IArbGas } from './ArbGasUtils'
 
 // extract address from initCode or paymasterAndData
 export function getAddr (data?: BytesLike): string | undefined {
