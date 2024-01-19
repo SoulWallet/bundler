@@ -185,7 +185,7 @@ export class UserOpMethodHandler {
     debugGas(`expectedPreVerificationGas: ${expectedPreVerificationGas}`)
     debugGas(`Total Estimated Gas: ${preVerificationGas + L2CallGasLimit + L1GasLimit}`)
 
-    preVerificationGas += BigNumber.from(L1GasLimit).mul(14).div(10).toNumber()
+    preVerificationGas += BigNumber.from(expectedPreVerificationGas).mul(14).div(10).toNumber()
     debugGas(`Requested PreVerificationGas: ${preVerificationGas}`)
 
     const verificationGasLimit = BigNumber.from(preOpGas).toNumber()
