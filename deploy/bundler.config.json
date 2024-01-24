@@ -9,6 +9,6 @@
   "maxBundleGas": 100e6,
   "minStake": "1" ,
   "minUnstakeDelay": 0 ,
-  "autoBundleInterval": 1,
+  "autoBundleInterval": 3,
   "autoBundleMempoolSize": 10
 }
