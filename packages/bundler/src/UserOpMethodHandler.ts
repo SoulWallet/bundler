@@ -173,7 +173,7 @@ export class UserOpMethodHandler {
     const L1CallGasLimit: number = arbCallGasLimits.l1GasLimit?.toNumber() ?? 0
     const L2CallGasLimit: number = arbCallGasLimits.l2GasLimit?.toNumber() ?? 0
     let preVerificationGas = calcPreVerificationGas(userOp)
-    const L1GasLimit = Math.min((await getArbL1GasLimit(this.provider, userOp)).toNumber(), 1000000)
+    const L1GasLimit = (await getArbL1GasLimit(this.provider, userOp)).toNumber();
 
     debugGas(`callGasLimit: ${callGasLimit}`)
     debugGas(`ArbCallGasLimits: ${L1CallGasLimit + L2CallGasLimit}`)
