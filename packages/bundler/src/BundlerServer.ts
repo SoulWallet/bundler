@@ -49,6 +49,8 @@ export class BundlerServer {
     this.app.post('/rpc', this.rpc.bind(this))
 
     this.httpServer = this.app.listen(this.config.port)
+    this.httpServer.keepAliveTimeout = (60 + 10) * 1000;
+    this.httpServer.headersTimeout = (60 + 20) * 1000;
     this.startingPromise = this._preflightCheck()
   }
 
